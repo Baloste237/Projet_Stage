@@ -37,7 +37,7 @@ public class MobSFScanResponse {
     private CodeAnalysis codeAnalysis;
 
     @JsonProperty("manifest_analysis")
-    private Object manifestAnalysis;
+    private List<ManifestIssue> manifestAnalysis;
 
     @JsonProperty("security_score")
     private Integer securityScore;

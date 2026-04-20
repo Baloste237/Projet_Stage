@@ -306,35 +306,23 @@ public class AppScanServiceImpl implements AppScanService {
                         }
                     }
                     
-                    // Parcourir Manifest Analysis dynamique
+                    // Parcourir Manifest Analysis
                     if (scanResp.getManifestAnalysis() != null) {
-                        try {
-                            if (scanResp.getManifestAnalysis() instanceof java.util.List) {
-                                java.util.List<?> rawList = (java.util.List<?>) scanResp.getManifestAnalysis();
-                                com.fasterxml.jackson.databind.ObjectMapper objMapper = new com.fasterxml.jackson.databind.ObjectMapper();
-                                for (Object obj : rawList) {
-                                    MobSFScanResponse.ManifestIssue issue = objMapper.convertValue(obj, MobSFScanResponse.ManifestIssue.class);
-                                    SeverityEnum sevEnum = mapSeverity(issue.getSeverity());
-                                    if (sevEnum != SeverityEnum.INFO) {
-                                        Vulnerabilite v = new Vulnerabilite(null, issue.getCwe() != null ? issue.getCwe() : "CWE-unknown", issue.getDescription() + " (Manifest)", sevEnum, issue.getCwe() != null ? issue.getCwe() : "CWE-unknown", 5.0, issue.getTitle(), mobileScan);
-                                        vulnerabiliteService.saveVulnerabilite(v);
-                                        
-                                        totalVulnerabilities++;
-                                        switch(sevEnum) {
-                                            case CRITICAL: critCount++; break;
-                                            case HIGH: highCount++; break;
-                                            case MEDIUM: medCount++; break;
-                                            case LOW: lowCount++; break;
-                                            default: break;
-                                        }
-                                    }
+                        for (MobSFScanResponse.ManifestIssue issue : scanResp.getManifestAnalysis()) {
+                            SeverityEnum sevEnum = mapSeverity(issue.getSeverity());
+                            if (sevEnum != SeverityEnum.INFO) {
+                                Vulnerabilite v = new Vulnerabilite(null, issue.getCwe() != null ? issue.getCwe() : "CWE-unknown", issue.getDescription() + " (Manifest)", sevEnum, issue.getCwe() != null ? issue.getCwe() : "CWE-unknown", 5.0, issue.getTitle(), mobileScan);
+                                vulnerabiliteService.saveVulnerabilite(v);
+                                
+                                totalVulnerabilities++;
+                                switch(sevEnum) {
+                                    case CRITICAL: critCount++; break;
+                                    case HIGH: highCount++; break;
+                                    case MEDIUM: medCount++; break;
+                                    case LOW: lowCount++; break;
+                                    default: break;
                                 }
-                            } else if (scanResp.getManifestAnalysis() instanceof java.util.Map) {
-                                // Parfois MobSF renvoie un objet associatif vide ou avec structure inattendue
-                                log.warn("[MobSF] manifestAnalysis a renvoyé un objet Map, ignoré ou parsé différemment.");
                             }
-                        } catch (Exception parseEx) {
-                            log.error("Erreur parsing ManifestAnalysis ignorée : {}", parseEx.getMessage());
                         }
                     }
 
