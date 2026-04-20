@@ -1,0 +1,25 @@
+# Docker and Container Files
+docker-compose.override.yml
+.dockerignore
+
+# Build outputs
+.docker/
+docker-build/
+
+# Container and Volume data
+postgres_data/
+postgres_data_dev/
+postgres_data_prod/
+
+# Environment files (keep .env.example)
+.env
+.env.local
+.env.*.local
+
+# Logs
+docker-logs/
+*.log
+
+# Backup files
+*.bak
+*.sql.gz

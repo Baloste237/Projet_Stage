@@ -36,10 +36,6 @@ public class SecurityConfig {
     private UserDetailsService userDetailsService;
     @Autowired
     private JwtFilter jwtFilter;
-    @Autowired
-    private OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler;
-    @Autowired
-    private OAuth2AuthenticationFailureHandler oAuth2AuthenticationFailureHandler;
 
     // 🔐 Encoder des mots de passe
     @Bean
@@ -81,19 +77,14 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/api/v1/analyze/dashboard",
                                 "/api/auth/register",
-                                "/api/auth/login",
-                                "/oauth2/**",
-                                "/login/oauth2/**"
+                                "/api/auth/login"
                         ).permitAll()
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
-                )
+                );
 
-                .oauth2Login(oauth2 -> oauth2
-                        .successHandler(oAuth2AuthenticationSuccessHandler)
-                        .failureHandler(oAuth2AuthenticationFailureHandler)
-                )
-
-                .httpBasic(Customizer.withDefaults()); // 🔐 Auth basique
+                /* Désactivé pour empêcher la petite popup navigateur indésirable lorsqu'un token manque */
+                // .httpBasic(Customizer.withDefaults()); 
         http.addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }

@@ -1,0 +1,133 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 210 20% 96%;
+    --foreground: 220 25% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 25% 12%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 25% 12%;
+    --primary: 200 95% 40%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 15% 90%;
+    --secondary-foreground: 220 25% 12%;
+    --muted: 210 15% 92%;
+    --muted-foreground: 215 14% 45%;
+    --accent: 150 70% 40%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 80% 55%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 214 20% 85%;
+    --input: 214 20% 85%;
+    --ring: 200 95% 40%;
+    --radius: 0.5rem;
+
+    --warning: 35 95% 50%;
+    --warning-foreground: 0 0% 100%;
+    --info: 200 95% 40%;
+    --info-foreground: 0 0% 100%;
+    --success: 150 70% 40%;
+    --success-foreground: 0 0% 100%;
+    --critical: 0 80% 55%;
+    --high: 25 95% 53%;
+    --medium: 45 95% 50%;
+    --low: 200 60% 55%;
+
+    --sidebar-background: 220 25% 10%;
+    --sidebar-foreground: 215 20% 75%;
+    --sidebar-primary: 190 95% 50%;
+    --sidebar-primary-foreground: 220 25% 8%;
+    --sidebar-accent: 220 20% 16%;
+    --sidebar-accent-foreground: 190 95% 60%;
+    --sidebar-border: 220 20% 18%;
+    --sidebar-ring: 190 95% 50%;
+
+    --font-heading: 'Inter', system-ui, sans-serif;
+    --font-body: 'Inter', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+
+  .dark {
+    --background: 220 25% 8%;
+    --foreground: 210 20% 90%;
+    --card: 220 20% 12%;
+    --card-foreground: 210 20% 90%;
+    --popover: 220 20% 12%;
+    --popover-foreground: 210 20% 90%;
+    --primary: 190 95% 50%;
+    --primary-foreground: 220 25% 8%;
+    --secondary: 220 20% 16%;
+    --secondary-foreground: 210 20% 85%;
+    --muted: 220 15% 18%;
+    --muted-foreground: 215 15% 55%;
+    --accent: 150 70% 45%;
+    --accent-foreground: 220 25% 8%;
+    --destructive: 0 80% 55%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 15% 20%;
+    --input: 220 15% 20%;
+    --ring: 190 95% 50%;
+
+    --warning: 35 95% 55%;
+    --warning-foreground: 0 0% 0%;
+    --info: 190 95% 50%;
+    --info-foreground: 0 0% 0%;
+    --success: 150 70% 45%;
+    --success-foreground: 0 0% 0%;
+    --critical: 0 80% 55%;
+    --high: 25 95% 53%;
+    --medium: 45 95% 50%;
+    --low: 200 60% 55%;
+
+    --sidebar-background: 220 25% 6%;
+    --sidebar-foreground: 215 20% 65%;
+    --sidebar-primary: 190 95% 50%;
+    --sidebar-primary-foreground: 220 25% 6%;
+    --sidebar-accent: 220 20% 12%;
+    --sidebar-accent-foreground: 190 95% 60%;
+    --sidebar-border: 220 20% 14%;
+    --sidebar-ring: 190 95% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-body);
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heading);
+  }
+  code, pre {
+    font-family: var(--font-mono);
+  }
+}
+
+@layer utilities {
+  .cyber-glow {
+    box-shadow: 0 0 15px -3px hsl(var(--primary) / 0.3), 0 0 30px -5px hsl(var(--primary) / 0.15);
+  }
+  .card-hover {
+    @apply transition-all duration-300;
+  }
+  .card-hover:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px -5px hsl(var(--primary) / 0.15);
+  }
+  .severity-critical { color: hsl(var(--critical)); }
+  .severity-high { color: hsl(var(--high)); }
+  .severity-medium { color: hsl(var(--medium)); }
+  .severity-low { color: hsl(var(--low)); }
+  .bg-severity-critical { background-color: hsl(var(--critical)); }
+  .bg-severity-high { background-color: hsl(var(--high)); }
+  .bg-severity-medium { background-color: hsl(var(--medium)); }
+  .bg-severity-low { background-color: hsl(var(--low)); }
+}

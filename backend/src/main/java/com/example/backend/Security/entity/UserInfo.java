@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import com.example.backend.user.domain.Role;
 
 
 @Entity
@@ -13,30 +14,20 @@ public class UserInfo {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     private String userName;
-    private String password;
-    private String roles;
     private String email;
-    private String provider; // GOOGLE, GITHUB, GITLAB, LOCAL
-    private String providerId; // OAuth2 provider ID
+    private String password;
+    @Enumerated(EnumType.STRING)
+    private Role role;
 
-    public UserInfo(String userName, String password, String roles) {
+    public UserInfo(String userName, String email, String password, Role role) {
         this.userName = userName;
+        this.email = email;
         this.password = password;
-        this.roles = roles;
-        this.provider = "LOCAL";
+        this.role = role;
     }
 
     public UserInfo() {
 
-    }
-
-    public UserInfo(String userName, String email, String provider, String providerId, String roles) {
-        this.userName = userName;
-        this.email = email;
-        this.provider = provider;
-        this.providerId = providerId;
-        this.roles = roles;
-        this.password = ""; // No password for OAuth2 users
     }
 
     public String getUserName() {
@@ -47,22 +38,6 @@ public class UserInfo {
         this.userName = userName;
     }
 
-    public String getPassword() {
-        return password;
-    }
-
-    public void setPassword(String password) {
-        this.password = password;
-    }
-
-    public String getRoles() {
-        return roles;
-    }
-
-    public void setRoles(String roles) {
-        this.roles = roles;
-    }
-
     public String getEmail() {
         return email;
     }
@@ -71,20 +46,20 @@ public class UserInfo {
         this.email = email;
     }
 
-    public String getProvider() {
-        return provider;
+    public String getPassword() {
+        return password;
     }
 
-    public void setProvider(String provider) {
-        this.provider = provider;
+    public void setPassword(String password) {
+        this.password = password;
     }
 
-    public String getProviderId() {
-        return providerId;
+    public Role getRole() {
+        return role;
     }
 
-    public void setProviderId(String providerId) {
-        this.providerId = providerId;
+    public void setRole(Role role) {
+        this.role = role;
     }
 
     public Long getId() {

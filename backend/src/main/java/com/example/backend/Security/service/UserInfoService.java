@@ -7,7 +7,4 @@ public interface UserInfoService {
 
     public String getUserInfo(UserInfoDto userInfoDto);
 
-    public UserInfoDto createOAuth2User(String email, String name, String provider, String providerId);
-
-    public String generateTokenForOAuth2User(String email);
 }

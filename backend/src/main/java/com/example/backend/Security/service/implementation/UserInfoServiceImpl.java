@@ -42,26 +42,8 @@ public class UserInfoServiceImpl implements UserInfoService {
     public String getUserInfo(UserInfoDto userInfoDto) {
         Authentication authentication= authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(userInfoDto.getUserName(), userInfoDto.getPassword()));
         if (authentication.isAuthenticated())
-            return jwtService.generateToken(userInfoDto.getUserName());
+            return jwtService.generateToken(authentication.getName());
         return "Failure";
     }
 
-    public UserInfoDto createOAuth2User(String email, String name, String provider, String providerId) {
-        // Check if user already exists
-        UserInfo existingUser = userInfoRepository.findByEmailAndProvider(email, provider);
-        if (existingUser != null) {
-            return UserInfoMapper.toDto(existingUser);
-        }
-
-        // Create new OAuth2 user
-        UserInfoDto userInfoDto = new UserInfoDto(name, email, provider, providerId, "ROLE_USER");
-        UserInfo userInfo = UserInfoMapper.toEntity(userInfoDto);
-        userInfoRepository.save(userInfo);
-
-        return UserInfoMapper.toDto(userInfo);
-    }
-
-    public String generateTokenForOAuth2User(String email) {
-        return jwtService.generateToken(email);
-    }
 }

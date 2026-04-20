@@ -30,7 +30,7 @@ public class AppScanController {
     }
 
     @GetMapping("/dashboard")
-    @PreAuthorize("hasRole('ADMIN')")
+
     public ResponseEntity<String> dashboardmsg(){
         return new ResponseEntity<>("welcome dashboard", HttpStatus.OK);
     }
@@ -47,7 +47,7 @@ public class AppScanController {
 
 
     @PostMapping(value = "/{appType}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ANALYSTE')")
     public ResponseEntity<AppScanResponseDTO> analyzeCode(
             @PathVariable("appType") String appType,
             @RequestParam("file") MultipartFile file,
@@ -64,7 +64,7 @@ public class AppScanController {
      * @return list of all scans
      */
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ANALYSTE')")
     public ResponseEntity<List<AbstractScan>> getAllScans() {
         log.info("Received request to retrieve all scans");
         return ResponseEntity.ok(appScanService.getAllScans());
@@ -77,7 +77,7 @@ public class AppScanController {
      * @return the scan entity
      */
     @GetMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ANALYSTE')")
     public ResponseEntity<AbstractScan> getScanById(@PathVariable("id") Long id) {
         log.info("Received request to retrieve scan with ID: {}", id);
         return ResponseEntity.ok(appScanService.getScanById(id));

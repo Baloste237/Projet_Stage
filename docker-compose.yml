@@ -1,0 +1,83 @@
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: vuln_scanner_db
+    environment:
+      POSTGRES_DB: ${DB_NAME:-vuln_scanner}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-admin}
+    ports:
+      - "${DB_PORT:-5433}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - vuln_scanner_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-vuln_scanner}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend Application
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: vuln_scanner_backend
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-vuln_scanner}
+      SPRING_DATASOURCE_USERNAME: ${DB_USER:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-admin}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SERVER_PORT: 8081
+      MOBSF_URL: http://mobsf:8000
+    ports:
+      - "8081:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mobsf:
+        condition: service_healthy
+    networks:
+      - vuln_scanner_network
+    volumes:
+      - ./backend/uploads:/app/uploads
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  mobsf:
+    image: opensecurity/mobile-security-framework-mobsf:latest
+    container_name: mobsf
+    expose:
+      - "8000"
+    ports:
+      - "8008:8000"       # Exposer pour accès direct navigateur (debug)
+    volumes:
+      - mobsf_data:/home/mobsf/.MobSF
+    environment:
+      - MOBSF_API_KEY_HEADER=Authorization
+      - MOBSF_API_KEY=mobsf_api_key_for_vulnscan
+    networks:
+      - vuln_scanner_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s    # MobSF prend du temps à démarrer
+
+volumes:
+  postgres_data:
+    driver: local
+  mobsf_data:
+    driver: local
+
+networks:
+  vuln_scanner_network:
+    driver: bridge

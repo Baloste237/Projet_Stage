@@ -24,9 +24,7 @@ public class UserInfoUserDetailsMapper implements UserDetails {
     public UserInfoUserDetailsMapper(UserInfo userInfo){
         userName=userInfo.getUserName();
         password=userInfo.getPassword();
-        grantedAuthorities= Arrays.stream(userInfo.getRoles().split(","))
-                .map(SimpleGrantedAuthority::new)
-                .collect(Collectors.toList());
+        grantedAuthorities= List.of(new SimpleGrantedAuthority(userInfo.getRole().name()));
     }
     @Override
     public @Nullable String getPassword() {
