@@ -1,16 +1,90 @@
 version: '3.8'
 
-# Production Docker Compose configuration
-# ⚠️ Security Notes:
-# - Use strong passwords for all services
-# - Never expose debug ports
-# - Use external secrets management
-# - Use restart policies
-# - Add resource limits
-# - Use specific image versions (no 'latest' tags)
-
 services:
-  # PostgreSQL Database
+  # 1. Reverse Proxy (Nginx) - Entry point
+  nginx:
+    build:
+      context: ./nginx
+    container_name: vuln_scanner_nginx_prod
+    ports:
+      - "80:80"
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - vuln_scanner_network
+    restart: unless-stopped
+
+  # 2. Frontend (React)
+  frontend:
+    build:
+      context: ./app-shield-pro
+    container_name: vuln_scanner_frontend_prod
+    networks:
+      - vuln_scanner_network
+    restart: unless-stopped
+
+  # 3. Backend (Spring Boot)
+  backend:
+    build:
+      context: ./backend
+    container_name: vuln_scanner_backend_prod
+    restart: unless-stopped
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-vuln_scanner}
+      SPRING_DATASOURCE_USERNAME: ${DB_USER:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SERVER_PORT: 8081
+      MOBSF_URL: http://mobsf:8000
+      MOBSF_API_KEY: ${MOBSF_API_KEY}
+      SAST_ENGINE_URL: http://sast_engine:8000/api/v1/analyze
+      JAVA_OPTS: "-Xmx1024m -Xms512m -XX:+UseG1GC"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mobsf:
+        condition: service_healthy
+      sast_engine:
+        condition: service_started
+    networks:
+      - vuln_scanner_network
+    volumes:
+      - ./backend/uploads:/app/uploads
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/actuator/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # 4. SAST Engine (Python/FastAPI)
+  sast_engine:
+    build:
+      context: ./sast_engine
+    container_name: vuln_scanner_sast_prod
+    restart: unless-stopped
+    networks:
+      - vuln_scanner_network
+
+  # 5. MobSF
+  mobsf:
+    image: opensecurity/mobile-security-framework-mobsf:latest
+    container_name: mobsf_prod
+    environment:
+      - MOBSF_API_KEY=${MOBSF_API_KEY}
+    networks:
+      - vuln_scanner_network
+    restart: unless-stopped
+    volumes:
+      - mobsf_data_prod:/home/mobsf/.MobSF
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # 6. Database (PostgreSQL)
   postgres:
     image: postgres:16-alpine
     container_name: vuln_scanner_db_prod
@@ -18,9 +92,7 @@ services:
     environment:
       POSTGRES_DB: ${DB_NAME:-vuln_scanner}
       POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}  # MUST be set in .env
-    ports:
-      - "${DB_PORT:-5433}:5432"
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - postgres_data_prod:/var/lib/postgresql/data
       - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
@@ -31,56 +103,11 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    deploy:
-      resources:
-        limits:
-          cpus: '2'
-          memory: 2G
-        reservations:
-          cpus: '1'
-          memory: 1G
-
-  # Backend Application
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: vuln_scanner_backend_prod
-    restart: unless-stopped
-    environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-vuln_scanner}
-      SPRING_DATASOURCE_USERNAME: ${DB_USER:-postgres}
-      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}  # MUST be set in .env
-      SPRING_JPA_HIBERNATE_DDL_AUTO: update
-      SERVER_PORT: 8081
-      JAVA_OPTS: -Xmx1024m -Xms512m -XX:+UseG1GC
-    ports:
-      - "8081:8081"
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - vuln_scanner_network
-    volumes:
-      - ./backend/uploads:/app/uploads
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8081/actuator/health"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-    deploy:
-      resources:
-        limits:
-          cpus: '4'
-          memory: 2G
-        reservations:
-          cpus: '2'
-          memory: 1G
-
-volumes:
-  postgres_data_prod:
-    driver: local
 
 networks:
   vuln_scanner_network:
     driver: bridge
+
+volumes:
+  postgres_data_prod:
+  mobsf_data_prod:
