@@ -44,7 +44,7 @@ services:
       postgres:
         condition: service_healthy
       mobsf:
-        condition: service_healthy
+        condition: service_started # Changé de service_healthy à service_started
       sast_engine:
         condition: service_started
     networks:
@@ -54,7 +54,7 @@ services:
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8081/actuator/health"]
       interval: 30s
-      timeout: 5s
+      timeout: 10s
       retries: 3
 
   # 4. SAST Engine (Python/FastAPI)
@@ -77,12 +77,7 @@ services:
     restart: unless-stopped
     volumes:
       - mobsf_data_prod:/home/mobsf/.MobSF
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 60s
+    # Retrait du healthcheck complexe qui peut faire échouer le démarrage sur des machines peu puissantes
 
   # 6. Database (PostgreSQL)
   postgres:
