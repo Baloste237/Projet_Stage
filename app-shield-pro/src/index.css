@@ -105,6 +105,7 @@
   }
   h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-heading);
+    letter-spacing: -0.01em;
   }
   code, pre {
     font-family: var(--font-mono);
@@ -112,16 +113,70 @@
 }
 
 @layer utilities {
+  /* Motif SVG réutilisable pour les composants */
+  .african-pattern {
+    background-image: url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M20 20.5V18H0v-2h20v-2H0v-2h20v-2H0V8h20V6H0V4h20V2H0V0h22v20h2V0h2v20h2V0h2v20h2V0h2v20h2V0h2v20h2v2H20v-1.5zM0 20h2v20H0V20zm4 0h2v20H4V20zm4 0h2v20H8V20zm4 0h2v20h-2V20zm4 0h2v20h-2V20zm4 4h20v2H20v-2zm0 4h20v2H20v-2zm0 4h20v2H20v-2zm0 4h20v2H20v-2z' fill='currentColor' fill-opacity='0.02' fill-rule='evenodd'/%3E%3C/svg%3E");
+  }
+
+  /* Titres distinctifs avec ornement géométrique */
+  .african-heading {
+    position: relative;
+    padding-left: 1.25rem;
+    font-weight: 700;
+  }
+  .african-heading::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 15%;
+    height: 70%;
+    width: 6px;
+    background: repeating-linear-gradient(
+      -45deg,
+      hsl(var(--primary)),
+      hsl(var(--primary)) 4px,
+      transparent 4px,
+      transparent 8px
+    );
+    border-radius: 2px;
+  }
+
   .cyber-glow {
     box-shadow: 0 0 15px -3px hsl(var(--primary) / 0.3), 0 0 30px -5px hsl(var(--primary) / 0.15);
   }
+  
+  /* Cartes avec micro-animations et identité */
   .card-hover {
-    @apply transition-all duration-300;
+    @apply transition-all duration-300 relative;
+    border-left: 3px solid transparent;
   }
   .card-hover:hover {
     transform: translateY(-2px);
-    box-shadow: 0 8px 25px -5px hsl(var(--primary) / 0.15);
+    box-shadow: 0 12px 30px -10px hsl(var(--primary) / 0.15);
+    border-left-color: hsl(var(--primary) / 0.8);
   }
+  
+  /* Boutons avec hover effect moderne */
+  .btn-african {
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s ease;
+  }
+  .btn-african::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 2px;
+    background-color: currentColor;
+    transition: width 0.3s ease;
+  }
+  .btn-african:hover::after {
+    width: 80%;
+  }
+
   .severity-critical { color: hsl(var(--critical)); }
   .severity-high { color: hsl(var(--high)); }
   .severity-medium { color: hsl(var(--medium)); }

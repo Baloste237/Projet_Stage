@@ -51,6 +51,7 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-admin}
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
       SERVER_PORT: 8081
+      SPRING_PROFILES_ACTIVE: dev
       JAVA_OPTS: -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005
     ports:
       - "8081:8081"

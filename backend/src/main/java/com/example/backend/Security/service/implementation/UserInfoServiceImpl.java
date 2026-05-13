@@ -31,6 +31,13 @@ public class UserInfoServiceImpl implements UserInfoService {
 
     @Override
     public UserInfoDto createUser(UserInfoDto userInfoDto) {
+        if (userInfoRepository.existsByEmail(userInfoDto.getEmail())) {
+            throw new IllegalArgumentException("L'adresse e-mail est déjà utilisée.");
+        }
+        if (userInfoRepository.existsByUserName(userInfoDto.getUserName())) {
+            throw new IllegalArgumentException("Le nom d'utilisateur est déjà pris.");
+        }
+
         UserInfo userInfo= UserInfoMapper.toEntity(userInfoDto);
         userInfo.setPassword(passwordEncoder.encode(userInfo.getPassword()));
         userInfoRepository.save(userInfo);
@@ -40,9 +47,18 @@ public class UserInfoServiceImpl implements UserInfoService {
 
     @Override
     public String getUserInfo(UserInfoDto userInfoDto) {
-        Authentication authentication= authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(userInfoDto.getUserName(), userInfoDto.getPassword()));
-        if (authentication.isAuthenticated())
-            return jwtService.generateToken(authentication.getName());
+        Authentication authentication = authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(userInfoDto.getUserName(), userInfoDto.getPassword()));
+        if (authentication.isAuthenticated()) {
+            // Inclure le rôle dans le token JWT pour que le frontend puisse le lire
+            String role = authentication.getAuthorities().stream()
+                    .findFirst()
+                    .map(a -> a.getAuthority())
+                    .orElse("ROLE_ANALYSTE");
+            java.util.Map<String, Object> claims = new java.util.HashMap<>();
+            claims.put("role", role);
+            return jwtService.generateToken(authentication.getName(), claims);
+        }
         return "Failure";
     }
 

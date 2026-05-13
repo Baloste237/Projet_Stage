@@ -2,26 +2,52 @@ package com.example.backend.scan.dto;
 
 import com.example.backend.scan.entity.ScanStatus;
 import com.example.backend.scan.entity.ScanType;
-
+import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.LocalDateTime;
 
 /**
  * DTO for scan response.
  */
+@Schema(description = "Réponse détaillée d'un scan de sécurité avec statistiques des vulnérabilités")
 public class AppScanResponseDTO {
+    @Schema(description = "ID unique du scan", example = "1")
     private Long id;
+
+    @Schema(description = "Nom du projet analysé", example = "MonApplicationWeb")
     private String projectName;
+
+    @Schema(description = "Nom du fichier analysé", example = "app-source.zip")
     private String fileName;
+
+    @Schema(description = "Chemin du fichier sur le serveur", example = "/uploads/app-source.zip")
     private String filePath;
+
+    @Schema(description = "Type de scan effectué", example = "SAST")
     private ScanType scanType;
+
+    @Schema(description = "Statut actuel du scan", example = "DONE")
     private ScanStatus status;
+
+    @Schema(description = "Nombre total de vulnérabilités détectées", example = "12")
     private int totalVulnerabilities;
+
+    @Schema(description = "Nombre de vulnérabilités critiques (CVSS ≥ 9.0)", example = "2")
     private int criticalCount;
+
+    @Schema(description = "Nombre de vulnérabilités élevées (CVSS 7.0-8.9)", example = "3")
     private int highCount;
+
+    @Schema(description = "Nombre de vulnérabilités moyennes (CVSS 4.0-6.9)", example = "5")
     private int mediumCount;
+
+    @Schema(description = "Nombre de vulnérabilités faibles (CVSS < 4.0)", example = "2")
     private int lowCount;
+
+    @Schema(description = "Date et heure de création du scan", example = "2026-05-12T10:30:00")
     private LocalDateTime createdAt;
+
+    @Schema(description = "Date et heure de fin du scan", example = "2026-05-12T10:32:15")
     private LocalDateTime completedAt;
 
     public AppScanResponseDTO() {
@@ -104,70 +130,19 @@ public class AppScanResponseDTO {
         AppScanResponseDTOBuilder() {
         }
 
-        public AppScanResponseDTOBuilder id(Long id) {
-            this.id = id;
-            return this;
-        }
-
-        public AppScanResponseDTOBuilder projectName(String projectName) {
-            this.projectName = projectName;
-            return this;
-        }
-
-        public AppScanResponseDTOBuilder fileName(String fileName) {
-            this.fileName = fileName;
-            return this;
-        }
-
-        public AppScanResponseDTOBuilder filePath(String filePath) {
-            this.filePath = filePath;
-            return this;
-        }
-
-        public AppScanResponseDTOBuilder scanType(ScanType scanType) {
-            this.scanType = scanType;
-            return this;
-        }
-
-        public AppScanResponseDTOBuilder status(ScanStatus status) {
-            this.status = status;
-            return this;
-        }
-
-        public AppScanResponseDTOBuilder totalVulnerabilities(int totalVulnerabilities) {
-            this.totalVulnerabilities = totalVulnerabilities;
-            return this;
-        }
-
-        public AppScanResponseDTOBuilder criticalCount(int criticalCount) {
-            this.criticalCount = criticalCount;
-            return this;
-        }
-
-        public AppScanResponseDTOBuilder highCount(int highCount) {
-            this.highCount = highCount;
-            return this;
-        }
-
-        public AppScanResponseDTOBuilder mediumCount(int mediumCount) {
-            this.mediumCount = mediumCount;
-            return this;
-        }
-
-        public AppScanResponseDTOBuilder lowCount(int lowCount) {
-            this.lowCount = lowCount;
-            return this;
-        }
-
-        public AppScanResponseDTOBuilder createdAt(LocalDateTime createdAt) {
-            this.createdAt = createdAt;
-            return this;
-        }
-
-        public AppScanResponseDTOBuilder completedAt(LocalDateTime completedAt) {
-            this.completedAt = completedAt;
-            return this;
-        }
+        public AppScanResponseDTOBuilder id(Long id) { this.id = id; return this; }
+        public AppScanResponseDTOBuilder projectName(String projectName) { this.projectName = projectName; return this; }
+        public AppScanResponseDTOBuilder fileName(String fileName) { this.fileName = fileName; return this; }
+        public AppScanResponseDTOBuilder filePath(String filePath) { this.filePath = filePath; return this; }
+        public AppScanResponseDTOBuilder scanType(ScanType scanType) { this.scanType = scanType; return this; }
+        public AppScanResponseDTOBuilder status(ScanStatus status) { this.status = status; return this; }
+        public AppScanResponseDTOBuilder totalVulnerabilities(int totalVulnerabilities) { this.totalVulnerabilities = totalVulnerabilities; return this; }
+        public AppScanResponseDTOBuilder criticalCount(int criticalCount) { this.criticalCount = criticalCount; return this; }
+        public AppScanResponseDTOBuilder highCount(int highCount) { this.highCount = highCount; return this; }
+        public AppScanResponseDTOBuilder mediumCount(int mediumCount) { this.mediumCount = mediumCount; return this; }
+        public AppScanResponseDTOBuilder lowCount(int lowCount) { this.lowCount = lowCount; return this; }
+        public AppScanResponseDTOBuilder createdAt(LocalDateTime createdAt) { this.createdAt = createdAt; return this; }
+        public AppScanResponseDTOBuilder completedAt(LocalDateTime completedAt) { this.completedAt = completedAt; return this; }
 
         public AppScanResponseDTO build() {
             return new AppScanResponseDTO(id, projectName, fileName, filePath, scanType, status, totalVulnerabilities, criticalCount, highCount, mediumCount, lowCount, createdAt, completedAt);

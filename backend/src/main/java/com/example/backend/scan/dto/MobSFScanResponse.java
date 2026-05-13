@@ -34,10 +34,10 @@ public class MobSFScanResponse {
     private Map<String, Object> androidApi;
 
     @JsonProperty("code_analysis")
-    private CodeAnalysis codeAnalysis;
+    private Object codeAnalysis;
 
     @JsonProperty("manifest_analysis")
-    private List<ManifestIssue> manifestAnalysis;
+    private Object manifestAnalysis;
 
     @JsonProperty("security_score")
     private Integer securityScore;
@@ -54,17 +54,27 @@ public class MobSFScanResponse {
     }
 
     @Data
-    public static class CodeAnalysis {
-        @JsonProperty("findings")
-        private Map<String, Finding> findings;
+    public static class Finding {
+        private String level;       // high / warning / info / secure
+        private String severity;
+        private Object files;
+        private String description;
+        private String desc;
+        private String cwe;
+        private String owasp;
+        @JsonProperty("cvss")
+        private Double cvss;
 
-        @Data
-        public static class Finding {
-            private String level;       // high / warning / info / secure
-            private List<String> files;
-            private String description;
-            private String cwe;
-            private String owasp;
+        public String getEffectiveSeverity() {
+            return (severity != null) ? severity : level;
+        }
+        public String getEffectiveDescription() {
+            return (description != null) ? description : desc;
+        }
+        public String getEffectiveCwe() {
+            if (cwe != null && !cwe.trim().isEmpty()) return cwe;
+            if (owasp != null && !owasp.trim().isEmpty()) return owasp;
+            return "N/A";
         }
     }
 
@@ -72,9 +82,27 @@ public class MobSFScanResponse {
     public static class ManifestIssue {
         private String rule;
         private String title;
+        private String name;
         private String severity;    // high / warning / info
+        private String stat;
         private String description;
+        private String desc;
         private String cwe;
         private String owasp;
+
+        public String getEffectiveSeverity() {
+            return (severity != null) ? severity : stat;
+        }
+        public String getEffectiveDescription() {
+            return (description != null) ? description : desc;
+        }
+        public String getEffectiveTitle() {
+            return (title != null) ? title : name;
+        }
+        public String getEffectiveCwe() {
+            if (cwe != null && !cwe.trim().isEmpty()) return cwe;
+            if (owasp != null && !owasp.trim().isEmpty()) return owasp;
+            return "N/A";
+        }
     }
 }

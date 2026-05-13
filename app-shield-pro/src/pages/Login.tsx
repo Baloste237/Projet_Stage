@@ -35,9 +35,11 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md border-border/50">
-        <CardHeader className="text-center space-y-4 pb-2">
+    <div className="min-h-screen flex items-center justify-center p-4">
+      <Card className="w-full max-w-md border-border/50 shadow-2xl relative overflow-hidden">
+        {/* Ligne décorative en haut de la carte */}
+        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary to-accent"></div>
+        <CardHeader className="text-center space-y-4 pb-2 mt-2">
           <div className="mx-auto w-fit">
             <img 
               src="/logo_AIsecure2-removebg-preview.png" 
@@ -46,7 +48,7 @@ export default function Login() {
             />
           </div>
           <div>
-            <h1 className="text-2xl font-bold font-heading">AiSecureScan</h1>
+            <h1 className="text-2xl font-bold font-heading african-heading mx-auto w-fit">AiSecureScan</h1>
             <p className="text-sm text-muted-foreground mt-1">Connectez-vous à votre compte</p>
           </div>
         </CardHeader>
@@ -54,21 +56,21 @@ export default function Login() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="identifier">Nom d'utilisateur ou Email</Label>
-              <Input id="identifier" type="text" placeholder="Entrez votre nom ou email" value={identifier} onChange={(e) => setIdentifier(e.target.value)} disabled={isLoading} required />
+              <Input id="identifier" type="text" placeholder="Entrez votre nom ou email" value={identifier} onChange={(e) => setIdentifier(e.target.value)} disabled={isLoading} required className="focus-visible:ring-primary/50" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Mot de passe</Label>
               <div className="relative">
-                <Input id="password" type={showPw ? "text" : "password"} placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} disabled={isLoading} required />
+                <Input id="password" type={showPw ? "text" : "password"} placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} disabled={isLoading} required className="focus-visible:ring-primary/50" />
                 <button type="button" onClick={() => setShowPw(!showPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
                   {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
             </div>
             <div className="text-right">
-              <a href="#" className="text-xs text-primary hover:underline">Mot de passe oublié ?</a>
+              <Link to="/forgot-password" className="text-xs text-primary hover:underline">Mot de passe oublié ?</Link>
             </div>
-            <Button type="submit" className="w-full" disabled={isLoading}>
+            <Button type="submit" className="w-full btn-african" disabled={isLoading}>
               {isLoading ? "Connexion en cours..." : "Connexion"}
             </Button>
             <p className="text-center text-sm text-muted-foreground">

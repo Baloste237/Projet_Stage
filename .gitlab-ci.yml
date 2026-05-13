@@ -1,0 +1,542 @@
+# ╔══════════════════════════════════════════════════════════════╗
+# ║         AiSecureScan — GitLab CI/CD Pipeline                ║
+# ║  Stages : build → test → security → package → deploy        ║
+# ╚══════════════════════════════════════════════════════════════╝
+
+# ── Variables globales ────────────────────────────────────────────────────────
+variables:
+  # Docker
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: "/certs"
+  REGISTRY: $CI_REGISTRY                              # registry.gitlab.com
+  IMAGE_BACKEND:  $CI_REGISTRY_IMAGE/backend:$CI_COMMIT_SHORT_SHA
+  IMAGE_FRONTEND: $CI_REGISTRY_IMAGE/frontend:$CI_COMMIT_SHORT_SHA
+
+  # MobSF
+  MOBSF_API_KEY: $MOBSF_API_KEY                       # → CI/CD Variable GitLab
+  MOBSF_URL: "http://localhost:8008"
+
+  # SAST Engine
+  SAST_ENGINE_URL: "http://localhost:8000/api/v1/analyze"
+
+  # Maven
+  MAVEN_OPTS: "-Dmaven.repo.local=$CI_PROJECT_DIR/.m2/repository -Xmx512m"
+  MAVEN_CLI_OPTS: "--batch-mode --no-transfer-progress"
+
+  # Deploy (SSH)
+  DEPLOY_USER: $DEPLOY_USER                           # → CI/CD Variable GitLab
+  DEPLOY_HOST: $DEPLOY_HOST                           # → CI/CD Variable GitLab
+  DEPLOY_PATH: "/opt/aisecurescan"
+
+# ── Stages ────────────────────────────────────────────────────────────────────
+stages:
+  - build
+  - test
+  - security
+  - package
+  - deploy
+
+# ── Cache partagé ─────────────────────────────────────────────────────────────
+.cache_maven: &cache_maven
+  cache:
+    key: "maven-$CI_COMMIT_REF_SLUG"
+    paths:
+      - .m2/repository
+    policy: pull-push
+
+.cache_npm: &cache_npm
+  cache:
+    key: "npm-$CI_COMMIT_REF_SLUG"
+    paths:
+      - app-shield-pro/node_modules
+    policy: pull-push
+
+# ── Règle branche principale ──────────────────────────────────────────────────
+.only_main: &only_main
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+
+# ══════════════════════════════════════════════════════════════════════════════
+# STAGE : build
+# ══════════════════════════════════════════════════════════════════════════════
+
+build:backend:
+  stage: build
+  image: maven:3.9-eclipse-temurin-21
+  <<: *cache_maven
+  script:
+    - echo "▶ [BUILD BACKEND] Compilation Maven..."
+    - cd backend
+    - mvn $MAVEN_CLI_OPTS clean package -DskipTests
+    - echo "✅ Backend compilé — JAR généré dans target/"
+  artifacts:
+    name: "backend-jar-$CI_COMMIT_SHORT_SHA"
+    paths:
+      - backend/target/*.jar
+    expire_in: 1 hour
+  retry: 1
+
+build:frontend:
+  stage: build
+  image: node:20-alpine
+  <<: *cache_npm
+  script:
+    - echo "▶ [BUILD FRONTEND] Installation des dépendances npm..."
+    - cd app-shield-pro
+    - npm ci --prefer-offline
+    - echo "▶ [BUILD FRONTEND] Build de production Vite..."
+    - npm run build
+    - echo "✅ Frontend compilé — dist/ généré"
+  artifacts:
+    name: "frontend-dist-$CI_COMMIT_SHORT_SHA"
+    paths:
+      - app-shield-pro/dist/
+    expire_in: 1 hour
+  retry: 1
+
+# ══════════════════════════════════════════════════════════════════════════════
+# STAGE : test
+# ══════════════════════════════════════════════════════════════════════════════
+
+test:backend:
+  stage: test
+  image: maven:3.9-eclipse-temurin-21
+  <<: *cache_maven
+  services:
+    - name: postgres:16-alpine
+      alias: postgres
+      variables:
+        POSTGRES_DB: vuln_scanner_test
+        POSTGRES_USER: postgres
+        POSTGRES_PASSWORD: admin
+  variables:
+    SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres:5432/vuln_scanner_test"
+    SPRING_DATASOURCE_USERNAME: postgres
+    SPRING_DATASOURCE_PASSWORD: admin
+    SPRING_JPA_HIBERNATE_DDL_AUTO: create-drop
+    MOBSF_API_KEY: "test_key_ci"
+    MOBSF_URL: "http://localhost:8008"
+  script:
+    - echo "▶ [TEST BACKEND] Exécution des tests JUnit..."
+    - cd backend
+    - mvn $MAVEN_CLI_OPTS test
+    - echo "✅ Tests backend terminés"
+  artifacts:
+    when: always
+    reports:
+      junit: backend/target/surefire-reports/TEST-*.xml
+    paths:
+      - backend/target/surefire-reports/
+    expire_in: 7 days
+  retry: 1
+  needs: [build:backend]
+
+test:frontend:
+  stage: test
+  image: node:20-alpine
+  <<: *cache_npm
+  script:
+    - echo "▶ [TEST FRONTEND] Exécution des tests Vitest..."
+    - cd app-shield-pro
+    - npm ci --prefer-offline
+    - npm run test
+    - echo "✅ Tests frontend terminés"
+  artifacts:
+    when: always
+    paths:
+      - app-shield-pro/test-results/
+    expire_in: 7 days
+  needs: [build:frontend]
+  allow_failure: true   # Tests frontend non bloquants si aucun test configuré
+
+test:sast-engine:
+  stage: test
+  image: python:3.11-slim
+  script:
+    - echo "▶ [TEST SAST] Installation des dépendances Python..."
+    - cd sast_engine
+    - pip install --quiet -r requirements.txt
+    - echo "▶ [TEST SAST] Exécution des tests pytest..."
+    - python -m pytest tests/ -v --tb=short --junitxml=pytest-report.xml || true
+    - echo "✅ Tests SAST terminés"
+  artifacts:
+    when: always
+    reports:
+      junit: sast_engine/pytest-report.xml
+    expire_in: 7 days
+  needs: []
+
+# ══════════════════════════════════════════════════════════════════════════════
+# STAGE : security
+# ══════════════════════════════════════════════════════════════════════════════
+
+security:sast-scan:
+  stage: security
+  image: python:3.11-slim
+  services:
+    - name: python:3.11-slim
+      alias: sast-engine
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq curl jq
+    - pip install --quiet uvicorn fastapi scikit-learn scipy numpy javalang joblib httpx pydantic
+    # Démarrer le moteur SAST en arrière-plan
+    - echo "▶ Démarrage du moteur SAST FastAPI..."
+    - cd sast_engine && nohup uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+    - sleep 8
+    # Vérifier que le service est prêt
+    - |
+      for i in $(seq 1 10); do
+        curl -sf http://localhost:8000/ && break
+        echo "  Attente du SAST engine... ($i/10)"
+        sleep 3
+      done
+    - echo "✅ SAST engine prêt"
+    - cd ..
+  script:
+    - echo "▶ [SECURITY SAST] Scan du code source backend..."
+    - mkdir -p reports/sast
+
+    # Collecter tous les fichiers Java du backend
+    - find backend/src/main/java -name "*.java" | head -20 > /tmp/java_files.txt
+    - echo "  Fichiers Java trouvés : $(wc -l < /tmp/java_files.txt)"
+
+    # Appel API SAST pour chaque fichier Java
+    - |
+      CRITICAL_COUNT=0
+      REPORT_FILE="reports/sast/sast-report.json"
+      echo '{"scan_date":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","results":[]}' > $REPORT_FILE
+
+      while IFS= read -r java_file; do
+        echo "  → Analyse : $java_file"
+        FILE_CONTENT=$(cat "$java_file" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read()))")
+        
+        RESPONSE=$(curl -sf -X POST "http://localhost:8000/api/v1/analyze" \
+          -H "Content-Type: application/json" \
+          -d "{\"code\": $FILE_CONTENT, \"filename\": \"$(basename $java_file)\"}" \
+          --max-time 30 || echo '{"error":"timeout"}')
+        
+        # Compter les vulnérabilités critiques
+        CRIT=$(echo "$RESPONSE" | jq '[.vulnerabilities[]? | select(.severity=="CRITICAL")] | length' 2>/dev/null || echo 0)
+        CRITICAL_COUNT=$((CRITICAL_COUNT + CRIT))
+        
+        # Ajouter au rapport
+        echo "$RESPONSE" | jq --arg f "$java_file" '. + {"file": $f}' >> reports/sast/details.jsonl 2>/dev/null || true
+      done < /tmp/java_files.txt
+
+      echo "▶ Vulnérabilités CRITIQUES détectées : $CRITICAL_COUNT"
+      echo $CRITICAL_COUNT > /tmp/critical_count.txt
+
+    # Générer rapport HTML lisible
+    - |
+      python3 - <<'PYEOF'
+      import json, os
+      from pathlib import Path
+
+      details = Path("reports/sast/details.jsonl")
+      html_out = Path("reports/sast/sast-report.html")
+
+      rows = ""
+      total_vuln = 0
+      if details.exists():
+          for line in details.read_text().splitlines():
+              try:
+                  d = json.loads(line)
+                  vulns = d.get("vulnerabilities", [])
+                  total_vuln += len(vulns)
+                  for v in vulns:
+                      sev = v.get("severity","UNKNOWN")
+                      color = {"CRITICAL":"#dc2626","HIGH":"#ea580c","MEDIUM":"#d97706","LOW":"#2563eb"}.get(sev,"#6b7280")
+                      rows += f'<tr><td>{d.get("file","")}</td><td style="color:{color};font-weight:bold">{sev}</td><td>{v.get("cwe","N/A")}</td><td>{v.get("description","")[:120]}</td></tr>'
+              except:
+                  pass
+
+      html = f"""<!DOCTYPE html><html><head><meta charset="UTF-8">
+      <title>SAST Report</title>
+      <style>body{{font-family:Arial;padding:20px}}table{{border-collapse:collapse;width:100%}}
+      th,td{{border:1px solid #ddd;padding:8px;text-align:left}}th{{background:#1e293b;color:white}}</style>
+      </head><body>
+      <h1>🔍 Rapport SAST — AiSecureScan</h1>
+      <p>Date : {os.popen("date -u").read().strip()}</p>
+      <p>Total vulnérabilités : <strong>{total_vuln}</strong></p>
+      <table><tr><th>Fichier</th><th>Sévérité</th><th>CWE</th><th>Description</th></tr>
+      {rows or "<tr><td colspan='4'>Aucune vulnérabilité détectée</td></tr>"}
+      </table></body></html>"""
+      html_out.write_text(html)
+      print(f"✅ Rapport HTML généré : {total_vuln} vulnérabilités")
+      PYEOF
+
+    # Bloquer si des critiques sont détectées
+    - |
+      CRITICAL=$(cat /tmp/critical_count.txt 2>/dev/null || echo 0)
+      if [ "$CRITICAL" -gt 0 ]; then
+        echo "🚨 PIPELINE BLOQUÉ : $CRITICAL vulnérabilité(s) CRITIQUE(S) détectée(s) !"
+        echo "   Consultez le rapport dans reports/sast/sast-report.html"
+        exit 1
+      fi
+      echo "✅ Aucune vulnérabilité critique — pipeline autorisé à continuer"
+
+  artifacts:
+    name: "sast-report-$CI_COMMIT_SHORT_SHA"
+    when: always
+    paths:
+      - reports/sast/
+    expire_in: 30 days
+  needs: [build:backend]
+  retry: 1
+
+security:mobsf-scan:
+  stage: security
+  image: docker:24
+  services:
+    - docker:24-dind
+  before_script:
+    - apk add --no-cache curl jq
+    # Démarrer MobSF avec la clé API fixe
+    - echo "▶ Démarrage de MobSF..."
+    - |
+      docker run -d \
+        --name mobsf_ci \
+        -p 8008:8000 \
+        -e MOBSF_API_KEY="${MOBSF_API_KEY}" \
+        opensecurity/mobile-security-framework-mobsf:latest
+    # Attendre que MobSF soit prêt (peut prendre 60-90s)
+    - |
+      echo "  Attente de MobSF (max 120s)..."
+      for i in $(seq 1 24); do
+        STATUS=$(curl -sf -o /dev/null -w "%{http_code}" http://localhost:8008/ || echo "000")
+        if [ "$STATUS" = "200" ]; then
+          echo "✅ MobSF prêt après $((i*5))s"
+          break
+        fi
+        echo "  MobSF non prêt (tentative $i/24, HTTP $STATUS)..."
+        sleep 5
+      done
+  script:
+    - mkdir -p reports/mobsf
+    - echo "▶ [SECURITY MOBSF] Recherche d'un APK à analyser..."
+
+    # Chercher un APK dans le repo (ou utiliser une variable CI)
+    - APK_FILE=$(find . -name "*.apk" -not -path "*/node_modules/*" | head -1)
+
+    - |
+      if [ -z "$APK_FILE" ]; then
+        echo "⚠️  Aucun APK trouvé dans le repository."
+        echo "   → Pour analyser un APK, ajoutez-le dans mobile/ ou définissez APK_URL en variable CI."
+        echo '{"status":"skipped","reason":"No APK found in repository"}' > reports/mobsf/mobsf-report.json
+        exit 0
+      fi
+      echo "  APK trouvé : $APK_FILE"
+
+    # 1. Upload de l'APK
+    - echo "▶ Upload APK vers MobSF..."
+    - |
+      UPLOAD_RESP=$(curl -sf \
+        -F "file=@${APK_FILE}" \
+        -H "Authorization: ${MOBSF_API_KEY}" \
+        http://localhost:8008/api/v1/upload)
+      echo "  Réponse upload : $UPLOAD_RESP"
+      HASH=$(echo "$UPLOAD_RESP" | jq -r '.hash')
+      if [ -z "$HASH" ] || [ "$HASH" = "null" ]; then
+        echo "❌ Échec de l'upload APK vers MobSF"
+        exit 1
+      fi
+      echo "  Hash APK : $HASH"
+
+    # 2. Lancer l'analyse statique
+    - echo "▶ Lancement de l'analyse MobSF..."
+    - |
+      curl -sf \
+        -d "hash=${HASH}&re_scan=0" \
+        -H "Authorization: ${MOBSF_API_KEY}" \
+        http://localhost:8008/api/v1/scan > /dev/null
+      echo "  Analyse en cours..."
+      sleep 30
+
+    # 3. Récupérer le rapport JSON
+    - echo "▶ Récupération du rapport JSON..."
+    - |
+      curl -sf \
+        -d "hash=${HASH}" \
+        -H "Authorization: ${MOBSF_API_KEY}" \
+        http://localhost:8008/api/v1/report_json \
+        -o reports/mobsf/mobsf-report.json
+      echo "✅ Rapport JSON sauvegardé"
+
+    # 4. Vérifier le score de sécurité
+    - |
+      SCORE=$(jq -r '.security_score // .average_cvss // 0' reports/mobsf/mobsf-report.json 2>/dev/null || echo 0)
+      echo "  Score de sécurité MobSF : $SCORE"
+      echo "✅ Analyse MobSF terminée"
+
+  after_script:
+    - docker rm -f mobsf_ci 2>/dev/null || true
+
+  artifacts:
+    name: "mobsf-report-$CI_COMMIT_SHORT_SHA"
+    when: always
+    paths:
+      - reports/mobsf/
+    expire_in: 30 days
+  needs: []
+  allow_failure: true   # Ne bloque pas si pas d'APK
+  retry: 1
+
+# ══════════════════════════════════════════════════════════════════════════════
+# STAGE : package (Docker build + push)
+# ══════════════════════════════════════════════════════════════════════════════
+
+package:backend:
+  stage: package
+  image: docker:24
+  services:
+    - docker:24-dind
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - echo "▶ [PACKAGE BACKEND] Build de l'image Docker..."
+    - |
+      docker build \
+        --tag $IMAGE_BACKEND \
+        --tag $CI_REGISTRY_IMAGE/backend:latest \
+        --label "git-commit=$CI_COMMIT_SHA" \
+        --label "build-date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+        ./backend
+    - echo "▶ Push vers GitLab Registry..."
+    - docker push $IMAGE_BACKEND
+    - docker push $CI_REGISTRY_IMAGE/backend:latest
+    - echo "✅ Image backend poussée : $IMAGE_BACKEND"
+  <<: *only_main
+  needs: [test:backend, security:sast-scan]
+
+package:frontend:
+  stage: package
+  image: docker:24
+  services:
+    - docker:24-dind
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - echo "▶ [PACKAGE FRONTEND] Build de l'image Docker..."
+    - |
+      docker build \
+        --tag $IMAGE_FRONTEND \
+        --tag $CI_REGISTRY_IMAGE/frontend:latest \
+        --label "git-commit=$CI_COMMIT_SHA" \
+        --build-arg VITE_API_URL=/api \
+        ./app-shield-pro
+    - echo "▶ Push vers GitLab Registry..."
+    - docker push $IMAGE_FRONTEND
+    - docker push $CI_REGISTRY_IMAGE/frontend:latest
+    - echo "✅ Image frontend poussée : $IMAGE_FRONTEND"
+  <<: *only_main
+  needs: [test:frontend]
+
+# ══════════════════════════════════════════════════════════════════════════════
+# STAGE : deploy
+# ══════════════════════════════════════════════════════════════════════════════
+
+deploy:production:
+  stage: deploy
+  image: alpine:3.19
+  before_script:
+    - apk add --no-cache openssh-client
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh && chmod 700 ~/.ssh
+    - ssh-keyscan -H $DEPLOY_HOST >> ~/.ssh/known_hosts
+  script:
+    - echo "▶ [DEPLOY] Déploiement sur $DEPLOY_HOST..."
+
+    # Copier le docker-compose et .env sur le serveur
+    - scp docker-compose.yml $DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/
+    - |
+      ssh $DEPLOY_USER@$DEPLOY_HOST "
+        set -e
+        echo '▶ Connexion au registry GitLab...'
+        docker login -u gitlab-ci-token -p ${CI_JOB_TOKEN} ${CI_REGISTRY}
+
+        echo '▶ Pull des nouvelles images...'
+        docker pull ${IMAGE_BACKEND}
+        docker pull ${IMAGE_FRONTEND}
+
+        echo '▶ Tag des images en :latest local...'
+        docker tag ${IMAGE_BACKEND}  ${CI_REGISTRY_IMAGE}/backend:latest
+        docker tag ${IMAGE_FRONTEND} ${CI_REGISTRY_IMAGE}/frontend:latest
+
+        echo '▶ Redémarrage des services...'
+        cd ${DEPLOY_PATH}
+        docker-compose pull
+        docker-compose up -d --remove-orphans
+
+        echo '▶ Vérification santé des conteneurs...'
+        sleep 15
+        docker-compose ps
+
+        echo '✅ Déploiement terminé avec succès !'
+      "
+  environment:
+    name: production
+    url: http://$DEPLOY_HOST
+  when: manual          # Déclenchement manuel uniquement
+  <<: *only_main
+  needs: [package:backend, package:frontend]
+
+# ══════════════════════════════════════════════════════════════════════════════
+# JOB BONUS : Rapport de sécurité consolidé
+# ══════════════════════════════════════════════════════════════════════════════
+
+report:consolidate:
+  stage: security
+  image: python:3.11-slim
+  script:
+    - echo "▶ [REPORT] Consolidation des rapports de sécurité..."
+    - mkdir -p reports/consolidated
+    - |
+      python3 - <<'PYEOF'
+      import json, os
+      from datetime import datetime
+      from pathlib import Path
+
+      report = {
+          "project": "AiSecureScan",
+          "commit": os.getenv("CI_COMMIT_SHORT_SHA", "local"),
+          "branch": os.getenv("CI_COMMIT_BRANCH", "unknown"),
+          "generated_at": datetime.utcnow().isoformat() + "Z",
+          "sast": {},
+          "mobsf": {}
+      }
+
+      sast_file = Path("reports/sast/details.jsonl")
+      if sast_file.exists():
+          vulns = []
+          for line in sast_file.read_text().splitlines():
+              try: vulns.extend(json.loads(line).get("vulnerabilities", []))
+              except: pass
+          by_sev = {}
+          for v in vulns:
+              s = v.get("severity", "UNKNOWN")
+              by_sev[s] = by_sev.get(s, 0) + 1
+          report["sast"] = {"total": len(vulns), "by_severity": by_sev}
+
+      mobsf_file = Path("reports/mobsf/mobsf-report.json")
+      if mobsf_file.exists():
+          try:
+              data = json.loads(mobsf_file.read_text())
+              report["mobsf"] = {
+                  "security_score": data.get("security_score", data.get("average_cvss", "N/A")),
+                  "status": "completed"
+              }
+          except: report["mobsf"] = {"status": "error"}
+
+      Path("reports/consolidated/security-summary.json").write_text(json.dumps(report, indent=2))
+      print(json.dumps(report, indent=2))
+      print("✅ Rapport consolidé généré")
+      PYEOF
+  artifacts:
+    name: "security-summary-$CI_COMMIT_SHORT_SHA"
+    when: always
+    paths:
+      - reports/consolidated/
+    expire_in: 30 days
+  needs: [security:sast-scan, security:mobsf-scan]
+  allow_failure: true

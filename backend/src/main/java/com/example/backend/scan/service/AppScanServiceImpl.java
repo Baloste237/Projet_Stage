@@ -22,6 +22,8 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.List;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -74,9 +76,9 @@ public class AppScanServiceImpl implements AppScanService {
     }
 
     @Override
-    public List<AbstractScan> getAllScans() {
-        log.info("Retrieving all scans");
-        return abstractScanRepository.findAll();
+    public Page<AbstractScan> getAllScans(Pageable pageable) {
+        log.info("Retrieving all scans with pagination: {}", pageable);
+        return abstractScanRepository.findAll(pageable);
     }
 
     @Override
@@ -188,10 +190,17 @@ public class AppScanServiceImpl implements AppScanService {
                         pathStream.filter(Files::isRegularFile)
                             .filter(p -> {
                                 String strPath = p.toString().replace("\\", "/");
+                                String lowerPathForFilter = strPath.toLowerCase();
                                 return !strPath.contains("/node_modules/") 
                                     && !strPath.contains("/.git/") 
                                     && !strPath.contains("/dist/") 
-                                    && !strPath.contains("/build/");
+                                    && !strPath.contains("/build/")
+                                    && !strPath.contains("/vendor/")
+                                    && !strPath.contains("/libs/")
+                                    && !strPath.contains("/assets/")
+                                    && !lowerPathForFilter.endsWith(".spec.ts")
+                                    && !lowerPathForFilter.endsWith(".test.ts")
+                                    && !lowerPathForFilter.endsWith(".min.js");
                             })
                             .forEach(filePath -> {
                                 String relativePath = tempExtractionDir.relativize(filePath).toString().replace("\\", "/");
@@ -205,9 +214,13 @@ public class AppScanServiceImpl implements AppScanService {
                                     List<VulnerabilityDetector.Finding> localFindings = VulnerabilityDetector.scanFile(filePath, relativePath);
                                     for (VulnerabilityDetector.Finding finding : localFindings) {
                                         Vulnerabilite vuln = new Vulnerabilite(null, finding.cweId, finding.description, finding.severity, finding.cweId, finding.adjustedScore, finding.ruleName, webScan);
+                                        vuln.setStatus(finding.status);
+                                        vuln.setRecommendation(finding.recommendation);
                                         vulnerabiliteService.saveVulnerabilite(vuln);
                                         
-                                        totalVulnerabilities.incrementAndGet();
+                                        if (!"FAUX POSITIF".equals(finding.status)) {
+                                            totalVulnerabilities.incrementAndGet();
+                                        }
                                         switch(finding.severity) {
                                             case CRITICAL: critCount.incrementAndGet(); break;
                                             case HIGH: highCount.incrementAndGet(); break;
@@ -229,6 +242,8 @@ public class AppScanServiceImpl implements AppScanService {
                                             for (com.example.backend.scan.dto.ia.IaAnalysisResponseDTO.IaCvssResult cvss : res.getCvssScores()) {
                                                 SeverityEnum sevEnum = mapSeverity(cvss.getSeverity());
                                                 Vulnerabilite vuln = new Vulnerabilite(null, cvss.getCweId(), cvss.getRationale() + " (File: " + relativePath + ")", sevEnum, cvss.getCweId(), cvss.getAdjustedScore(), "IA Detection", webScan);
+                                                vuln.setStatus("CONFIRMÉE");
+                                                vuln.setRecommendation("Corriger le code selon l'analyse avancée.");
                                                 vulnerabiliteService.saveVulnerabilite(vuln);
                                                 
                                                 totalVulnerabilities.incrementAndGet();
@@ -283,24 +298,109 @@ public class AppScanServiceImpl implements AppScanService {
                     // Lancer Analyse
                     com.example.backend.scan.dto.MobSFScanResponse scanResp = mobsfClient.lancerAnalyse(uploadResp.getHash());
                     
-                    // Parcourir Vulns Code Analysis
-                    if (scanResp.getCodeAnalysis() != null && scanResp.getCodeAnalysis().getFindings() != null) {
-                        for (java.util.Map.Entry<String, MobSFScanResponse.CodeAnalysis.Finding> entry : scanResp.getCodeAnalysis().getFindings().entrySet()) {
-                            String key = entry.getKey();
-                            MobSFScanResponse.CodeAnalysis.Finding finding = entry.getValue();
+                    // Parcourir Vulns Code Analysis de façon dynamique (JsonNode)
+                    if (scanResp.getCodeAnalysis() != null) {
+                        com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                        com.fasterxml.jackson.databind.JsonNode codeAnalysisNode = mapper.valueToTree(scanResp.getCodeAnalysis());
+                        
+                        // 1. Sauvegarde du JSON complet brut sans parsing strict (Objectif 1)
+                        try {
+                            String rawJson = mapper.writeValueAsString(scanResp.getCodeAnalysis());
+                            mobileScan.setRawCodeAnalysis(rawJson);
+                            log.info("Code_analysis JSON brut sauvegardé pour le scan Mobile ID: {}", mobileScan.getId());
+                        } catch (Exception e) {
+                            log.warn("Erreur lors de la sauvegarde du JSON brut code_analysis", e);
+                        }
+                        
+                        com.fasterxml.jackson.databind.JsonNode findingsNode = codeAnalysisNode;
+                        // Gérer la structure variable : code_analysis -> findings -> ...
+                        if (codeAnalysisNode.has("findings")) {
+                            findingsNode = codeAnalysisNode.get("findings");
+                        }
+
+                        if (findingsNode != null && !findingsNode.isEmpty()) {
+                            java.util.List<java.util.Map.Entry<String, com.fasterxml.jackson.databind.JsonNode>> vulnNodes = new java.util.ArrayList<>();
                             
-                            SeverityEnum sevEnum = mapSeverity(finding.getLevel());
-                            if (sevEnum != SeverityEnum.INFO) { 
-                                Vulnerabilite v = new Vulnerabilite(null, finding.getCwe() != null ? finding.getCwe() : "CWE-unknown", finding.getDescription() + " (Files: " + (finding.getFiles() != null ? String.join(", ", finding.getFiles()) : "bytecode") + ")", sevEnum, finding.getCwe() != null ? finding.getCwe() : "CWE-unknown", 5.0, key, mobileScan);
-                                vulnerabiliteService.saveVulnerabilite(v);
+                            if (findingsNode.isObject()) {
+                                java.util.Iterator<java.util.Map.Entry<String, com.fasterxml.jackson.databind.JsonNode>> fields = findingsNode.fields();
+                                while(fields.hasNext()) {
+                                    vulnNodes.add(fields.next());
+                                }
+                            } else if (findingsNode.isArray()) {
+                                int idx = 0;
+                                for (com.fasterxml.jackson.databind.JsonNode node : findingsNode) {
+                                    String key = node.has("title") ? node.get("title").asText() : (node.has("name") ? node.get("name").asText() : "Vuln-" + idx);
+                                    vulnNodes.add(new java.util.AbstractMap.SimpleEntry<>(key, node));
+                                    idx++;
+                                }
+                            }
+
+                            for (java.util.Map.Entry<String, com.fasterxml.jackson.databind.JsonNode> entry : vulnNodes) {
+                                String key = entry.getKey();
+                                com.fasterxml.jackson.databind.JsonNode vulnNode = entry.getValue();
+                                if ("findings".equals(key)) continue; // sécurité supplémentaire
                                 
-                                totalVulnerabilities++;
-                                switch(sevEnum) {
-                                    case CRITICAL: critCount++; break;
-                                    case HIGH: highCount++; break;
-                                    case MEDIUM: medCount++; break;
-                                    case LOW: lowCount++; break;
-                                    default: break;
+                                try {
+                                    String cwe = extractCweDynamically(vulnNode, key);
+                                    
+                                    String filesStr = "bytecode";
+                                    if (vulnNode.has("files")) {
+                                        com.fasterxml.jackson.databind.JsonNode filesNode = vulnNode.get("files");
+                                        if (filesNode.isArray()) {
+                                            java.util.List<String> fileList = new java.util.ArrayList<>();
+                                            for (com.fasterxml.jackson.databind.JsonNode fn : filesNode) { fileList.add(fn.asText()); }
+                                            filesStr = String.join(", ", fileList);
+                                        } else if (filesNode.isObject()) {
+                                            java.util.List<String> fileList = new java.util.ArrayList<>();
+                                            java.util.Iterator<String> fileKeys = filesNode.fieldNames();
+                                            while (fileKeys.hasNext()) { fileList.add(fileKeys.next()); }
+                                            filesStr = String.join(", ", fileList);
+                                        } else if (!filesNode.isNull()) {
+                                            filesStr = filesNode.asText();
+                                        }
+                                    }
+                                    
+                                    String sevStr = "INFO";
+                                    if (vulnNode.has("severity") && !vulnNode.get("severity").isNull()) {
+                                        sevStr = vulnNode.get("severity").asText();
+                                    } else if (vulnNode.has("level") && !vulnNode.get("level").isNull()) {
+                                        sevStr = vulnNode.get("level").asText();
+                                    }
+                                    SeverityEnum sevEnum = mapSeverity(sevStr);
+                                    
+                                    if (sevEnum != SeverityEnum.INFO) { 
+                                        double cvss = 5.0;
+                                        if (vulnNode.has("cvss") && vulnNode.get("cvss").isNumber()) {
+                                            cvss = vulnNode.get("cvss").asDouble();
+                                        }
+                                        
+                                        String desc = "No description";
+                                        if (vulnNode.has("description") && !vulnNode.get("description").isNull()) {
+                                            desc = vulnNode.get("description").asText();
+                                        } else if (vulnNode.has("desc") && !vulnNode.get("desc").isNull()) {
+                                            desc = vulnNode.get("desc").asText();
+                                        }
+                                        
+                                        // Troncature sécurisée pour la BDD
+                                        String fullDesc = desc + " (Files: " + filesStr + ")";
+                                        if (fullDesc.length() > 255) {
+                                            fullDesc = fullDesc.substring(0, 250) + "...";
+                                        }
+
+                                        Vulnerabilite v = new Vulnerabilite(null, cwe, fullDesc, sevEnum, cwe, cvss, key, mobileScan);
+                                        vulnerabiliteService.saveVulnerabilite(v);
+                                        
+                                        totalVulnerabilities++;
+                                        switch(sevEnum) {
+                                            case CRITICAL: critCount++; break;
+                                            case HIGH: highCount++; break;
+                                            case MEDIUM: medCount++; break;
+                                            case LOW: lowCount++; break;
+                                            default: break;
+                                        }
+                                    }
+                                } catch (Exception ex) {
+                                    log.warn("Impossible de parser un item code_analysis de manière dynamique: {}", key, ex);
                                 }
                             }
                         }
@@ -308,21 +408,113 @@ public class AppScanServiceImpl implements AppScanService {
                     
                     // Parcourir Manifest Analysis
                     if (scanResp.getManifestAnalysis() != null) {
-                        for (MobSFScanResponse.ManifestIssue issue : scanResp.getManifestAnalysis()) {
-                            SeverityEnum sevEnum = mapSeverity(issue.getSeverity());
-                            if (sevEnum != SeverityEnum.INFO) {
-                                Vulnerabilite v = new Vulnerabilite(null, issue.getCwe() != null ? issue.getCwe() : "CWE-unknown", issue.getDescription() + " (Manifest)", sevEnum, issue.getCwe() != null ? issue.getCwe() : "CWE-unknown", 5.0, issue.getTitle(), mobileScan);
-                                vulnerabiliteService.saveVulnerabilite(v);
-                                
-                                totalVulnerabilities++;
-                                switch(sevEnum) {
-                                    case CRITICAL: critCount++; break;
-                                    case HIGH: highCount++; break;
-                                    case MEDIUM: medCount++; break;
-                                    case LOW: lowCount++; break;
-                                    default: break;
+                        com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                        // Ignore unknown properties to avoid crash
+                        mapper.configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+                        
+                        try {
+                            if (scanResp.getManifestAnalysis() instanceof java.util.List) {
+                                java.util.List<?> rawList = (java.util.List<?>) scanResp.getManifestAnalysis();
+                                for (Object obj : rawList) {
+                                    try {
+                                        MobSFScanResponse.ManifestIssue issue = mapper.convertValue(obj, MobSFScanResponse.ManifestIssue.class);
+                                        SeverityEnum sevEnum = mapSeverity(issue.getEffectiveSeverity());
+                                        if (sevEnum != SeverityEnum.INFO) {
+                                            String desc = issue.getEffectiveDescription() != null ? issue.getEffectiveDescription() : "No description";
+                                            String cwe = issue.getEffectiveCwe();
+                                            String title = issue.getEffectiveTitle() != null ? issue.getEffectiveTitle() : "Manifest Issue";
+                                            
+                                            String fullDesc = desc + " (Manifest)";
+                                            if (fullDesc.length() > 255) {
+                                                fullDesc = fullDesc.substring(0, 250) + "...";
+                                            }
+
+                                            Vulnerabilite v = new Vulnerabilite(null, cwe, fullDesc, sevEnum, cwe, 5.0, title, mobileScan);
+                                            vulnerabiliteService.saveVulnerabilite(v);
+                                            totalVulnerabilities++;
+                                            switch(sevEnum) {
+                                                case CRITICAL: critCount++; break;
+                                                case HIGH: highCount++; break;
+                                                case MEDIUM: medCount++; break;
+                                                case LOW: lowCount++; break;
+                                                default: break;
+                                            }
+                                        }
+                                    } catch (Exception itemEx) {
+                                        log.warn("Impossible de parser un item manifest_analysis (list): {}", obj, itemEx);
+                                    }
+                                }
+                            } else if (scanResp.getManifestAnalysis() instanceof java.util.Map) {
+                                java.util.Map<?, ?> rawMap = (java.util.Map<?, ?>) scanResp.getManifestAnalysis();
+                                for (java.util.Map.Entry<?, ?> entry : rawMap.entrySet()) {
+                                    Object val = entry.getValue();
+                                    
+                                    // MobSF frequently wraps manifest issues inside an array for keys like "manifest_findings"
+                                    if (val instanceof java.util.List) {
+                                        java.util.List<?> listVal = (java.util.List<?>) val;
+                                        for (Object item : listVal) {
+                                            try {
+                                                MobSFScanResponse.ManifestIssue issue = mapper.convertValue(item, MobSFScanResponse.ManifestIssue.class);
+                                                SeverityEnum sevEnum = mapSeverity(issue.getEffectiveSeverity());
+                                                if (sevEnum != SeverityEnum.INFO) {
+                                                    String desc = issue.getEffectiveDescription() != null ? issue.getEffectiveDescription() : "No description";
+                                                    String cwe = issue.getEffectiveCwe();
+                                                    String title = issue.getEffectiveTitle() != null ? issue.getEffectiveTitle() : entry.getKey().toString();
+                                                    
+                                                    String fullDesc = desc + " (Manifest)";
+                                                    if (fullDesc.length() > 255) {
+                                                        fullDesc = fullDesc.substring(0, 250) + "...";
+                                                    }
+
+                                                    Vulnerabilite v = new Vulnerabilite(null, cwe, fullDesc, sevEnum, cwe, 5.0, title, mobileScan);
+                                                    vulnerabiliteService.saveVulnerabilite(v);
+                                                    totalVulnerabilities++;
+                                                    switch(sevEnum) {
+                                                        case CRITICAL: critCount++; break;
+                                                        case HIGH: highCount++; break;
+                                                        case MEDIUM: medCount++; break;
+                                                        case LOW: lowCount++; break;
+                                                        default: break;
+                                                    }
+                                                }
+                                            } catch (Exception itemEx) {
+                                                log.warn("Impossible de parser un item manifest_analysis list item (map): {}", item, itemEx);
+                                            }
+                                        }
+                                    } else {
+                                        // Standard map entry
+                                        try {
+                                            MobSFScanResponse.ManifestIssue issue = mapper.convertValue(val, MobSFScanResponse.ManifestIssue.class);
+                                            SeverityEnum sevEnum = mapSeverity(issue.getEffectiveSeverity());
+                                            if (sevEnum != SeverityEnum.INFO) {
+                                                String desc = issue.getEffectiveDescription() != null ? issue.getEffectiveDescription() : "No description";
+                                                String cwe = issue.getEffectiveCwe();
+                                                String title = issue.getEffectiveTitle() != null ? issue.getEffectiveTitle() : entry.getKey().toString();
+                                                
+                                                String fullDesc = desc + " (Manifest)";
+                                                if (fullDesc.length() > 255) {
+                                                    fullDesc = fullDesc.substring(0, 250) + "...";
+                                                }
+
+                                                Vulnerabilite v = new Vulnerabilite(null, cwe, fullDesc, sevEnum, cwe, 5.0, title, mobileScan);
+                                                vulnerabiliteService.saveVulnerabilite(v);
+                                                totalVulnerabilities++;
+                                                switch(sevEnum) {
+                                                    case CRITICAL: critCount++; break;
+                                                    case HIGH: highCount++; break;
+                                                    case MEDIUM: medCount++; break;
+                                                    case LOW: lowCount++; break;
+                                                    default: break;
+                                                }
+                                            }
+                                        } catch (Exception itemEx) {
+                                            log.warn("Impossible de parser un item manifest_analysis (map): {}", entry.getKey(), itemEx);
+                                        }
+                                    }
                                 }
                             }
+                        } catch (Exception parseEx) {
+                            log.warn("Impossible de parser le manifest_analysis", parseEx);
                         }
                     }
 
@@ -366,6 +558,24 @@ public class AppScanServiceImpl implements AppScanService {
             log.error("Scan processing failed for ID: {}", scan.getId(), e);
             throw new ScanException("Scan processing failed", e);
         }
+    }
+
+    private String extractCweDynamically(com.fasterxml.jackson.databind.JsonNode vulnNode, String contextKey) {
+        if (vulnNode.has("cwe") && !vulnNode.get("cwe").asText().trim().isEmpty()) {
+            String cwe = vulnNode.get("cwe").asText().trim();
+            log.info("CWE détecté depuis code_analysis (champ cwe) pour [{}] : {}", contextKey, cwe);
+            return cwe;
+        } else if (vulnNode.has("owasp") && !vulnNode.get("owasp").asText().trim().isEmpty()) {
+            String owasp = vulnNode.get("owasp").asText().trim();
+            log.info("CWE détecté depuis code_analysis (fallback owasp) pour [{}] : {}", contextKey, owasp);
+            return owasp;
+        } else if (vulnNode.has("owasp-mobile") && !vulnNode.get("owasp-mobile").asText().trim().isEmpty()) {
+            String owaspMobile = vulnNode.get("owasp-mobile").asText().trim();
+            log.info("CWE détecté depuis code_analysis (fallback owasp-mobile) pour [{}] : {}", contextKey, owaspMobile);
+            return owaspMobile;
+        }
+        log.debug("Aucun CWE ou OWASP trouvé pour la vulnérabilité : {}", contextKey);
+        return "N/A";
     }
 
     private SeverityEnum mapSeverity(String severity) {

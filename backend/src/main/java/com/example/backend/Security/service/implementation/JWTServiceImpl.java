@@ -21,11 +21,14 @@ public class JWTServiceImpl implements JWTService {
 
     @Override
     public String generateToken(String username) {
-        Map<String, Object> claims = new HashMap<>();
+        return generateToken(username, new HashMap<>());
+    }
 
+    @Override
+    public String generateToken(String username, Map<String, Object> extraClaims) {
         return Jwts.builder()
-                .claims(claims)                   // ⚡ claims() dans 0.12.x
-                .subject(username)                // ⚡ subject() au lieu de setSubject()
+                .claims(extraClaims)
+                .subject(username)
                 .issuedAt(new Date(System.currentTimeMillis()))
                 .expiration(new Date(System.currentTimeMillis() + 1000 * 60 * 60 * 24))
                 .signWith(getKey())

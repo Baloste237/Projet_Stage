@@ -5,6 +5,8 @@ import com.example.backend.scan.entity.AbstractScan;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 /**
  * Service interface for managing application scans.
@@ -28,11 +30,12 @@ public interface AppScanService {
     AbstractScan getScanById(Long id);
 
     /**
-     * Retrieves all scans.
+     * Retrieves all scans with pagination.
      * 
-     * @return list of all scans
+     * @param pageable pagination information
+     * @return page of scans
      */
-    List<AbstractScan> getAllScans();
+    Page<AbstractScan> getAllScans(Pageable pageable);
 
     /**
      * Deletes a scan by its ID.

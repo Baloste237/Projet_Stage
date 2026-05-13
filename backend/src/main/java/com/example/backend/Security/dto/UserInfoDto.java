@@ -1,9 +1,19 @@
 package com.example.backend.Security.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
+@Schema(description = "DTO pour l'inscription et la connexion d'un utilisateur")
 public class UserInfoDto {
+    @Schema(description = "Nom d'utilisateur unique", example = "admin_user", requiredMode = Schema.RequiredMode.REQUIRED)
     private String userName;
+
+    @Schema(description = "Adresse e-mail de l'utilisateur", example = "admin@vulnscan.com", requiredMode = Schema.RequiredMode.REQUIRED)
     private String email;
+
+    @Schema(description = "Mot de passe (hashé en BCrypt côté serveur)", example = "P@ssw0rd!2024", requiredMode = Schema.RequiredMode.REQUIRED, accessMode = Schema.AccessMode.WRITE_ONLY)
     private String password;
+
+    @Schema(description = "Rôle de l'utilisateur", example = "ROLE_ANALYSTE", allowableValues = {"ROLE_ADMIN", "ROLE_ANALYSTE"})
     private String role;
 
     public UserInfoDto(String userName, String email, String password, String role) {

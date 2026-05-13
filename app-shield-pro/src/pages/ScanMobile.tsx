@@ -107,10 +107,10 @@ export default function ScanMobile() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold font-heading flex items-center gap-2">
-          <Smartphone className="h-6 w-6 text-primary" />Scan Mobile
+        <h1 className="text-3xl font-bold font-heading flex items-center gap-2 african-heading">
+          <Smartphone className="h-7 w-7 text-primary" />Scan Mobile
         </h1>
-        <p className="text-muted-foreground text-sm">Analysez la sécurité de vos applications mobiles via MobSF</p>
+        <p className="text-muted-foreground mt-1">Analyser le code source d'une application mobile (APK/IPA)</p>
       </div>
 
       <Card className="border-border/50">

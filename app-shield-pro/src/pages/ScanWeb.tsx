@@ -110,10 +110,10 @@ export default function ScanWeb() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold font-heading flex items-center gap-2">
-          <Globe className="h-6 w-6 text-primary" />Scan Web
+        <h1 className="text-3xl font-bold font-heading flex items-center gap-2 african-heading">
+          <Globe className="h-7 w-7 text-primary" />Scan Web App
         </h1>
-        <p className="text-muted-foreground text-sm">Analysez la sécurité de vos applications web</p>
+        <p className="text-muted-foreground mt-1">Analyser le code source d'une application web</p>
       </div>
 
       <Card className="border-border/50">

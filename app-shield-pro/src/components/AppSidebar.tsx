@@ -11,6 +11,9 @@ import {
   Shield, // Icône pour le logo de l'application
   Moon, // Icône pour le mode sombre
   Sun, // Icône pour le mode clair
+  ShieldAlert as AdminIcon, // Alias for admin
+  Activity,
+  FileText,
 } from "lucide-react";
 
 // Import du composant NavLink personnalisé
@@ -66,7 +69,7 @@ export function AppSidebar() {
 
   // Retour du JSX pour rendre la sidebar
   return (
-    <Sidebar collapsible="icon">
+    <Sidebar collapsible="icon" className="african-pattern border-r border-sidebar-border">
       <SidebarHeader className="border-b border-sidebar-border p-4">
         <div className="flex items-center gap-2">
           <Shield className="h-7 w-7 text-sidebar-primary shrink-0" />
@@ -100,6 +103,59 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
+              
+              {user?.role === "ROLE_ADMIN" && (
+                <>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                      <NavLink
+                        to="/admin"
+                        className="hover:bg-sidebar-accent/50 transition-colors mt-4 text-amber-600 dark:text-amber-500"
+                        activeClassName="bg-sidebar-accent text-amber-700 dark:text-amber-400 font-medium"
+                      >
+                        <AdminIcon className="h-4 w-4 shrink-0" />
+                        {!collapsed && <span>Administration</span>}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                      <NavLink
+                        to="/admin/dashboard"
+                        className="hover:bg-sidebar-accent/50 transition-colors text-amber-600 dark:text-amber-500"
+                        activeClassName="bg-sidebar-accent text-amber-700 dark:text-amber-400 font-medium"
+                      >
+                        <Activity className="h-4 w-4 shrink-0" />
+                        {!collapsed && <span>Admin Dashboard</span>}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                      <NavLink
+                        to="/admin/logs"
+                        className="hover:bg-sidebar-accent/50 transition-colors text-amber-600 dark:text-amber-500"
+                        activeClassName="bg-sidebar-accent text-amber-700 dark:text-amber-400 font-medium"
+                      >
+                        <FileText className="h-4 w-4 shrink-0" />
+                        {!collapsed && <span>Audit Logs</span>}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                      <NavLink
+                        to="/admin/live"
+                        className="hover:bg-sidebar-accent/50 transition-colors text-amber-600 dark:text-amber-500"
+                        activeClassName="bg-sidebar-accent text-amber-700 dark:text-amber-400 font-medium"
+                      >
+                        <Activity className="h-4 w-4 shrink-0 text-red-500" />
+                        {!collapsed && <span>Live Activity</span>}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </>
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

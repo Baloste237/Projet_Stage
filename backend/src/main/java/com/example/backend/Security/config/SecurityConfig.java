@@ -74,11 +74,22 @@ public class SecurityConfig {
                 .authenticationProvider(authenticationProvider()) // ✅ IMPORTANT
 
                 .authorizeHttpRequests(auth -> auth
+                        //les routes publiques
                         .requestMatchers(
                                 "/api/v1/analyze/dashboard",
                                 "/api/auth/register",
-                                "/api/auth/login"
+                                "/api/auth/login",
+                                "/api/auth/forgot-password",
+                                "/api/auth/reset-password",
+                                "/api/ws-admin/**"
                         ).permitAll()
+                        // Swagger
+                        .requestMatchers(
+                                "/swagger-ui/**",
+                                "/swagger-ui.html",
+                                "/v3/api-docs/**"
+                        ).permitAll()
+
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 );

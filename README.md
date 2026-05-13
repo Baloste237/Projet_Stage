@@ -1,107 +1,239 @@
-# 🛡️ App Shield Pro - Guide de Démarrage Global
+# 🛡️ App Shield Pro — Guide de Démarrage
 
-Ce projet est une plateforme complète d'analyse de vulnérabilités (SAST/DAST) composée de plusieurs microservices de nouvelle génération. 
-Ce guide vous guidera étape par étape pour démarrer le projet entier, soit manuellement (pour le développement), soit via Docker.
+Ce projet est une plateforme complète d'analyse de vulnérabilités (SAST mobile & web) composée de plusieurs microservices.  
+Ce guide vous explique **exactement** comment démarrer le projet, que ce soit manuellement (développement local) ou via Docker.
 
 ---
 
 ## 🏗️ Architecture du Projet
 
-Votre projet est divisé en **3 composants principaux** (plus les outils tiers) :
-
-1. **Frontend (`/app-shield-pro`)** : L'interface utilisateur Web propulsée par Vite et Bun.
-2. **Backend API (`/backend`)** : L'application principale en Java **Spring Boot** (Port `8081`). Gère la logique des utilisateurs, le stockage en base de données PostgreSQL, et délègue les tâches de scan.
-3. **Moteur SAST (`/sast_engine`)** : Microservice Python **FastAPI** (Port `8000`). Utilise notre architecture Hybride (Moteur de Règles Heuristiques + Intelligence Artificielle SVM) pour scanner le code source.
-4. **Services Tiers** : Base de données (PostgreSQL) et moteur de scan mobile (MobSF).
+| Composant | Technologie | Port | Rôle |
+|---|---|---|---|
+| **Frontend** (`/app-shield-pro`) | Vite + React | `5173` | Interface utilisateur web |
+| **Backend API** (`/backend`) | Spring Boot (Java) | `8081` | Logique métier, BDD, orchestration des scans |
+| **Moteur SAST** (`/sast_engine`) | FastAPI (Python) | `8000` | Analyse statique de code source (IA + règles) |
+| **Base de données** | PostgreSQL | `5433` | Stockage des données |
+| **MobSF** | Docker | `8008` | Scanner d'APK Android/iOS |
 
 ---
 
-## 💻 Option 1 : Démarrage Manuel (Recommandé pour coder en Local)
+## 💻 Option 1 : Démarrage Manuel (Développement Local)
 
-C'est la technique utilisée lorsque vous voulez modifier du code et voir les conséquences en direct.
+Recommandé quand vous modifiez du code et voulez voir les changements en direct.
 
-### Étape 1 : Démarrer la base de données PostgreSQL & MobSF
-Puisque installer la base de données à la main sur Windows est contraignant, utilisez Docker juste pour la base de données :
+### Pré-requis
+- **Java 17+** installé
+- **Python 3.10+** installé
+- **Bun** installé (`npm install -g bun` ou via [bun.sh](https://bun.sh))
+- **Docker Desktop** en cours d'exécution (uniquement pour PostgreSQL et MobSF)
+
+---
+
+### Étape 1 — Démarrer PostgreSQL & MobSF via Docker
+
+Ces deux services sont lancés via Docker car leur installation manuelle est fastidieuse.
+
 ```bash
 # À la racine du projet
 docker-compose up -d postgres mobsf
 ```
 
-### Étape 2 : Démarrer le Moteur SAST (Python / IA)
-Ouvrez un **nouveau terminal**, et lancez l'API FastAPI :
+> ✅ **MobSF est maintenant configuré avec une clé API fixe automatiquement.**  
+> La clé `mobsf_fixed_api_key_vulnscan_2024` est définie dans le fichier `.env`  
+> et injectée automatiquement dans MobSF **et** dans le backend. Pas besoin de la copier-coller.
+
+Vérifiez que les deux conteneurs sont bien démarrés :
+```bash
+docker-compose ps
+```
+Attendez que MobSF soit `healthy` avant de continuer (cela peut prendre ~60 secondes).
+
+---
+
+### Étape 2 — Démarrer le Moteur SAST Python
+
+Ouvrez un **nouveau terminal** :
+
 ```bash
 cd sast_engine
 
-# Activation de l'environnement virtuel (Si pas déjà fait)
-.venv\Scripts\activate
+# Activer l'environnement virtuel
+.venv\Scripts\activate        # Windows
+# source .venv/bin/activate   # Linux / macOS
 
-# Installation des dépendances
+# Installer les dépendances (seulement la première fois)
 pip install -r requirements.txt
 
-# Lancement du serveur FastAPI
+# Lancer le serveur FastAPI
 uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
-*L'API SAST IA sera accessible sur `http://localhost:8000/docs`*
 
-### Étape 3 : Démarrer le Backend (Spring Boot)
-Ouvrez un **nouveau terminal**, et lancez le backend Java :
+> ⚠️ Lancez toujours `uvicorn` **depuis le répertoire `sast_engine`** pour que les chemins vers les modèles ML (`.pkl`) soient corrects.
+
+✅ L'API SAST est accessible sur : `http://localhost:8000/docs`
+
+---
+
+### Étape 3 — Démarrer le Backend Spring Boot
+
+Ouvrez un **nouveau terminal** :
+
 ```bash
 cd backend
 ./mvnw spring-boot:run
 ```
-*Le Backend sera accessible sur `http://localhost:8081`*
 
-### Étape 4 : Démarrer le Frontend (Dashboard Web)
-Ouvrez un **dernier terminal**, lancez Bun pour servir le front :
+> Le backend lira automatiquement la clé MobSF depuis la variable d'environnement  
+> `MOBSF_API_KEY` définie dans `.env` (valeur par défaut : `mobsf_fixed_api_key_vulnscan_2024`).
+
+✅ Le Backend est accessible sur : `http://localhost:8081`
+
+---
+
+### Étape 4 — Démarrer le Frontend
+
+Ouvrez un **nouveau terminal** :
+
+```bash
+cd app-shield-pro
+
+# Installer les dépendances (seulement la première fois)
+bun install
+
+# Lancer le serveur de développement
+npm run dev
+```
+
+✅ Le Frontend est accessible sur : `http://localhost:5173`
+
+---
+
+### Récapitulatif des ports (Mode Manuel)
+
+| Service | URL |
+|---|---|
+| Frontend | http://localhost:5173 |
+| Backend API | http://localhost:8081 |
+| Moteur SAST Python | http://localhost:8000/docs |
+| MobSF (interface web) | http://localhost:8008 |
+| PostgreSQL | localhost:5433 |
+
+---
+
+## 🐳 Option 2 : Démarrage Via Docker (Backend + BDD + MobSF)
+
+> **Note :** Le `docker-compose.yml` couvre le **Backend**, **PostgreSQL** et **MobSF**.  
+> Le moteur Python (`sast_engine`) et le frontend (`app-shield-pro`) doivent être lancés manuellement (voir Étapes 2 et 4 ci-dessus).
+
+### Pré-requis
+- **Docker Desktop** en cours d'exécution
+- **Bun** installé (pour le frontend)
+- **Python 3.11+** (pour le moteur SAST)
+
+---
+
+### Étape 1 — Lancer les conteneurs Docker
+
+```bash
+# À la racine du projet (où se trouve docker-compose.yml)
+docker-compose up -d
+```
+
+La clé API MobSF est **automatiquement partagée** entre MobSF et le backend via le fichier `.env`. Aucune configuration manuelle n'est nécessaire.
+
+---
+
+### Étape 2 — Vérifier que tout est démarré
+
+```bash
+docker-compose ps
+```
+
+Vous devez voir ces 3 services avec le statut `running` / `healthy` :
+
+| Conteneur | Port | Statut attendu |
+|---|---|---|
+| `vuln_scanner_db` | `5433` | ✅ healthy |
+| `mobsf` | `8008` | ✅ healthy (après ~60s) |
+| `vuln_scanner_backend` | `8081` | ✅ healthy |
+
+---
+
+### Étape 3 — Lancer le Moteur SAST Python (manuel)
+
+```bash
+cd sast_engine
+.venv\Scripts\activate
+uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+```
+
+---
+
+### Étape 4 — Lancer le Frontend (manuel)
+
 ```bash
 cd app-shield-pro
 bun install
 npm run dev
 ```
-*(Regardez dans le terminal, il vous donnera l'URL locale, souvent `http://localhost:5173` ou `3000`)*
 
 ---
 
-## 🐳 Option 2 : Démarrage Via Docker (Déploiement Complet)
+### Gestion des conteneurs Docker
 
-> **Note :** Actuellement, le `docker-compose.yml` ne contient que le Backend, PostgreSQL et MobSF. Le moteur Python `sast_engine` et le front `app-shield-pro` n'y sont pas encore intégrés, il faudra donc les lancer manuellement à côté (comme montré dans l'Option 1).
-
-Si vous souhaitez allumer toute la partie couverte par Docker, voici la démarche :
-
-### 1. Démarrer les conteneurs (Backend + BDD + MobSF)
 ```bash
-cd e:\Projet_stage\Projet_Stage
-docker-compose up -d
-```
-
-### 2. Vérifier que tout est "UP"
-```bash
-docker-compose ps
-```
-Vous devriez voir :
-- ✅ `vuln_scanner_db` (Base de données PostgreSQL sur le port `5433`)
-- ✅ `mobsf` (Scanner mobile externe sur le port `8008`)
-- ✅ `vuln_scanner_backend` (API Backend sur le port `8081`)
-
-### 3. Gérer les conteneurs
-Si vous voulez consulter les logs (erreurs) du backend :
-```bash
+# Voir les logs du backend en temps réel
 docker-compose logs -f backend
-```
 
-Pour tout éteindre de manière propre sans détruire les bases de données :
-```bash
+# Voir les logs de MobSF
+docker-compose logs -f mobsf
+
+# Arrêter les conteneurs sans supprimer les données
 docker-compose stop
+
+# Redémarrer les conteneurs
+docker-compose start
+
+# Reconstruire le backend après modification du code Java
+docker-compose up -d --build backend
+
+# Tout arrêter ET supprimer les volumes (reset complet)
+docker-compose down -v
 ```
 
 ---
 
-## 🐛 En cas de Problème (Troubleshooting)
+## ⚙️ Configuration — Fichier `.env`
 
-1. **Port déjà utilisé** :
-   *Le port 8000 (SAST Python) ou 8081 (Backend Java) ou 5433 (BDD Docker) est déjà pris.*
-   - Allez les changer dans le code ou modifiez le fichier `.env` si vous l'utilisez.
-2. **Le Python FastAPI ne trouve pas les `.pkl`** :
-   - Vous devez obligatoirement lancer `uvicorn` en étant DANS le répertoire `sast_engine` pour que les chemins relatifs vers `app/ml/` se créent au bon endroit.
-3. **Vous touchez au code du Backend (Option 2)** :
-   - Si vous lancez le backend via docker, il faut forcer Docker à recompiler le Java à chaque changement avec `docker-compose up -d --build backend`.
+Le fichier `.env` à la racine du projet centralise toute la configuration :
+
+```env
+# Base de données
+DB_NAME=vuln_scanner
+DB_USER=postgres
+DB_PASSWORD=admin
+DB_PORT=5433
+
+# Backend
+BACKEND_PORT=8081
+
+# MobSF — clé API fixe partagée automatiquement entre MobSF et le backend
+MOBSF_URL=http://mobsf:8000
+MOBSF_API_KEY=mobsf_fixed_api_key_vulnscan_2024
+```
+
+> 🔑 **Plus besoin de copier-coller la clé API MobSF.**  
+> Elle est définie une seule fois dans `.env` et injectée automatiquement dans tous les services.
+
+---
+
+## 🐛 Troubleshooting
+
+| Problème | Solution |
+|---|---|
+| Port `8000`, `8081` ou `5433` déjà utilisé | Modifiez les ports dans `.env` ou arrêtez le processus qui les occupe |
+| Le moteur SAST ne trouve pas les fichiers `.pkl` | Lancez `uvicorn` **depuis le répertoire `sast_engine`**, pas depuis la racine |
+| MobSF retourne `401 Unauthorized` | Vérifiez que `MOBSF_API_KEY` dans `.env` correspond à celle dans `application.properties` |
+| MobSF non `healthy` au démarrage | Normal, il prend ~60 secondes. Attendez et relancez `docker-compose ps` |
+| Modification du code Java avec Docker | Relancez avec `docker-compose up -d --build backend` pour recompiler |
+| Reset complet (données effacées) | `docker-compose down -v` puis `docker-compose up -d` |

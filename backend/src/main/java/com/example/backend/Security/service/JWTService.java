@@ -4,6 +4,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 
 public interface JWTService {
     public String generateToken(String username);
+    public String generateToken(String username, java.util.Map<String, Object> extraClaims);
 
     public String extractUserName(String jwtToken);
 

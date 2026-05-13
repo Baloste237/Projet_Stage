@@ -33,6 +33,7 @@ services:
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
       SERVER_PORT: 8081
       MOBSF_URL: http://mobsf:8000
+      MOBSF_API_KEY: ${MOBSF_API_KEY:-mobsf_fixed_api_key_vulnscan_2024}
     ports:
       - "8081:8081"
     depends_on:
@@ -60,8 +61,7 @@ services:
     volumes:
       - mobsf_data:/home/mobsf/.MobSF
     environment:
-      - MOBSF_API_KEY_HEADER=Authorization
-      - MOBSF_API_KEY=mobsf_api_key_for_vulnscan
+      - MOBSF_API_KEY=${MOBSF_API_KEY:-mobsf_fixed_api_key_vulnscan_2024}
     networks:
       - vuln_scanner_network
     restart: unless-stopped

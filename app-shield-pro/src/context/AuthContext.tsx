@@ -40,8 +40,14 @@ function parseJwt(token: string) {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(() => {
-    const saved = localStorage.getItem("vulnscan-user");
-    return saved ? JSON.parse(saved) : null;
+    try {
+      const saved = localStorage.getItem("vulnscan-user");
+      return saved ? JSON.parse(saved) : null;
+    } catch (e) {
+      console.error("Failed to parse user from localStorage:", e);
+      localStorage.removeItem("vulnscan-user");
+      return null;
+    }
   });
 
   const login = async (identifier: string, password: string) => {
@@ -65,7 +71,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const payload = parseJwt(token);
       const userName = payload?.sub || identifier;
       
-      const u = { name: userName, email: identifier, role: "ROLE_ANALYSTE" };
+      // Lire le rôle depuis le JWT : Spring Security le met sous 'role', 'roles' ou 'authorities'
+      let role = "ROLE_ANALYSTE"; // fallback par défaut
+      if (payload?.role) {
+        role = payload.role;
+      } else if (Array.isArray(payload?.roles) && payload.roles.length > 0) {
+        role = payload.roles[0];
+      } else if (Array.isArray(payload?.authorities) && payload.authorities.length > 0) {
+        role = payload.authorities[0]?.authority || payload.authorities[0];
+      }
+      
+      const u = { name: userName, email: identifier, role };
       setUser(u);
       localStorage.setItem("vulnscan-user", JSON.stringify(u));
       localStorage.setItem("vulnscan-token", token);

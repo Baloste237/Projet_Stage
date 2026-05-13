@@ -15,6 +15,7 @@ public class UserInfoUserDetailsMapper implements UserDetails {
 
     private String userName;
     private String password;
+    private boolean enabled;
     private List<GrantedAuthority> grantedAuthorities;
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
@@ -24,6 +25,7 @@ public class UserInfoUserDetailsMapper implements UserDetails {
     public UserInfoUserDetailsMapper(UserInfo userInfo){
         userName=userInfo.getUserName();
         password=userInfo.getPassword();
+        enabled=userInfo.isEnabled();
         grantedAuthorities= List.of(new SimpleGrantedAuthority(userInfo.getRole().name()));
     }
     @Override
@@ -53,6 +55,6 @@ public class UserInfoUserDetailsMapper implements UserDetails {
 
     @Override
     public boolean isEnabled() {
-        return UserDetails.super.isEnabled();
+        return enabled;
     }
 }
