@@ -12,6 +12,11 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import java.security.Principal;
+import java.util.Map;
+import java.util.HashMap;
+import com.example.backend.scan.repository.UserInfoRepository;
+import com.example.backend.Security.entity.UserInfo;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -22,12 +27,16 @@ public class UserInfoController {
     @Autowired
     UserInfoService userInfoService;
 
+    @Autowired
+    UserInfoRepository userInfoRepository;
+
+
     @Operation(
             summary = "Inscription d'un nouvel utilisateur",
             description = """
                     Crée un nouveau compte utilisateur dans le système.
                     Le mot de passe est automatiquement hashé avec BCrypt.
-                    Le rôle par défaut est ROLE_ANALYSTE sauf si spécifié autrement.
+                    Le rôle par défaut est ROLE_ANALYSTE_SECURITE sauf si spécifié autrement.
                     """
     )
     @ApiResponses({
@@ -72,6 +81,23 @@ public class UserInfoController {
     @PostMapping("login")
     public ResponseEntity<String> getUSerInfo(@RequestBody UserInfoDto userInfoDto){
         return new ResponseEntity<>(userInfoService.getUserInfo(userInfoDto),HttpStatus.OK);
+    }
+
+    @Operation(summary = "Récupérer l'utilisateur connecté", description = "Retourne les informations de l'utilisateur basé sur son JWT.")
+    @GetMapping("me")
+    public ResponseEntity<?> getMe(Principal principal) {
+        if (principal == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        return userInfoRepository.findByUserName(principal.getName())
+            .map(user -> {
+                Map<String, Object> resp = new HashMap<>();
+                resp.put("id", user.getId());
+                resp.put("username", user.getUserName());
+                resp.put("email", user.getEmail());
+                resp.put("role", user.getRole().name());
+                // Add dummy dates or real if they exist in UserInfo
+                return ResponseEntity.ok(resp);
+            })
+            .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).build());
     }
 
 

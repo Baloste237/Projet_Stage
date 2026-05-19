@@ -30,8 +30,7 @@ public class ReportController {
         this.appScanService = appScanService;
     }
 
-    @Operation(summary = "Générer un rapport de scan",
-            description = "Génère un rapport détaillé (PDF ou JSON) pour un scan. Permissions : ADMIN ou ANALYSTE.")
+    @Operation(summary = "Générer un rapport de scan", description = "Génère un rapport détaillé (PDF ou JSON) pour un scan. Permissions : ADMIN ou ANALYSTE.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Rapport généré avec succès"),
             @ApiResponse(responseCode = "400", description = "Format non supporté"),
@@ -41,11 +40,11 @@ public class ReportController {
             @ApiResponse(responseCode = "500", description = "Erreur de génération")
     })
     @GetMapping("/{scanId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ANALYSTE')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ANALYSTE_SECURITE')")
     public ResponseEntity<?> getReport(
             @Parameter(description = "ID du scan", required = true, example = "1") @PathVariable Long scanId,
-            @Parameter(description = "Format: json ou pdf", schema = @Schema(allowableValues = {"json", "pdf"}, defaultValue = "json"))
-            @RequestParam(defaultValue = "json") String format) {
+            @Parameter(description = "Format: json ou pdf", schema = @Schema(allowableValues = { "json",
+                    "pdf" }, defaultValue = "json")) @RequestParam(defaultValue = "json") String format) {
         try {
             if ("pdf".equalsIgnoreCase(format)) {
                 byte[] pdfBytes = reportService.generateReportPdf(scanId);
@@ -60,12 +59,14 @@ public class ReportController {
                 headers.setContentDispositionFormData("attachment", "report_scan_" + scanId + ".json");
                 return new ResponseEntity<>(jsonBody, headers, HttpStatus.OK);
             } else {
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Format non supporté. Utilisez 'pdf' ou 'json'.");
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body("Format non supporté. Utilisez 'pdf' ou 'json'.");
             }
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Erreur lors de la génération du rapport : " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Erreur lors de la génération du rapport : " + e.getMessage());
         }
     }
 
@@ -84,7 +85,8 @@ public class ReportController {
             appScanService.deleteScan(scanId);
             return ResponseEntity.noContent().build();
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Erreur de suppression: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Erreur de suppression: " + e.getMessage());
         }
     }
 }

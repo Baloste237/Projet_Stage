@@ -14,7 +14,6 @@ export default function Register() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPw, setConfirmPw] = useState("");
-  const [role, setRole] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { register } = useAuth();
@@ -26,14 +25,10 @@ export default function Register() {
       toast.error("Les mots de passe ne correspondent pas");
       return;
     }
-    if (!role) {
-      toast.error("Veuillez sélectionner un rôle");
-      return;
-    }
     
     setIsLoading(true);
     try {
-      const success = await register(name, email, password, role);
+      const success = await register(name, email, password);
       if (success) {
         toast.success("Compte créé avec succès !");
         navigate("/");
@@ -92,16 +87,7 @@ export default function Register() {
               <Label htmlFor="confirmPw">Confirmer le mot de passe</Label>
               <Input id="confirmPw" type="password" placeholder="••••••••" value={confirmPw} onChange={(e) => setConfirmPw(e.target.value)} disabled={isLoading} required className="focus-visible:ring-primary/50" />
             </div>
-            <div className="space-y-2">
-              <Label>Rôle</Label>
-              <Select value={role} onValueChange={setRole} disabled={isLoading} required>
-                <SelectTrigger className="focus:ring-primary/50"><SelectValue placeholder="Sélectionner un rôle" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ROLE_ANALYSTE">Analyste Sécurité</SelectItem>
-                  <SelectItem value="ROLE_ADMIN">Administrateur</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+
             <Button type="submit" className="w-full btn-african" disabled={isLoading}>
               {isLoading ? "Création en cours..." : "Créer un compte"}
             </Button>

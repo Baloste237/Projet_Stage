@@ -12,13 +12,16 @@ public class EmailServiceImpl implements EmailService {
     @Autowired
     private JavaMailSender emailSender;
 
+    @org.springframework.beans.factory.annotation.Value("${app.frontend.url:http://localhost:5173}")
+    private String frontendUrl;
+
     @Override
     public void sendPasswordResetEmail(String to, String token) {
         SimpleMailMessage message = new SimpleMailMessage();
         message.setTo(to);
         message.setSubject("Réinitialisation de votre mot de passe");
         message.setText("Pour réinitialiser votre mot de passe, veuillez cliquer sur le lien suivant :\n\n"
-                + "http://localhost:3000/reset-password?token=" + token
+                + frontendUrl + "/reset-password?token=" + token
                 + "\n\nCe lien expirera dans 15 minutes.");
         emailSender.send(message);
     }

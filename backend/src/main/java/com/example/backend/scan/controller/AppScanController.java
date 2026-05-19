@@ -84,7 +84,7 @@ public class AppScanController {
                     4. Sauvegarde des résultats en base de données
                     
                     **Taille maximale** : 100 MB  
-                    **Permissions** : ROLE_ADMIN ou ROLE_ANALYSTE
+                    **Permissions** : ROLE_ADMIN ou ROLE_ANALYSTE_SECURITE
                     """
     )
     @ApiResponses({
@@ -101,7 +101,7 @@ public class AppScanController {
                             examples = @ExampleObject(value = "{\"error\": \"Internal Server Error\", \"message\": \"An unexpected error occurred.\"}")))
     })
     @PostMapping(value = "/{appType}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasAnyRole('ADMIN', 'ANALYSTE')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ANALYSTE_SECURITE')")
     public ResponseEntity<AppScanResponseDTO> analyzeCode(
             @Parameter(description = "Type d'application à analyser", required = true,
                     schema = @Schema(allowableValues = {"web", "mobile"}), example = "web")
@@ -127,7 +127,7 @@ public class AppScanController {
             description = """
                     Récupère la liste paginée de tous les scans effectués, triés par date de création décroissante.
                     
-                    **Permissions** : ROLE_ADMIN ou ROLE_ANALYSTE
+                    **Permissions** : ROLE_ADMIN ou ROLE_ANALYSTE_SECURITE
                     """
     )
     @ApiResponses({
@@ -136,7 +136,7 @@ public class AppScanController {
             @ApiResponse(responseCode = "403", description = "Accès refusé — Rôle ADMIN ou ANALYSTE requis")
     })
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'ANALYSTE')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ANALYSTE_SECURITE')")
     public ResponseEntity<Page<AbstractScan>> getAllScans(
             @Parameter(description = "Numéro de page (commence à 0)", example = "0")
             @RequestParam(defaultValue = "0") int page,
@@ -164,7 +164,7 @@ public class AppScanController {
             @ApiResponse(responseCode = "404", description = "Scan non trouvé avec l'ID spécifié")
     })
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ANALYSTE')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ANALYSTE_SECURITE')")
     public ResponseEntity<AbstractScan> getScanById(
             @Parameter(description = "ID unique du scan", required = true, example = "1")
             @PathVariable("id") Long id) {

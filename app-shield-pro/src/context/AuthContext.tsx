@@ -9,7 +9,7 @@ interface User {
 interface AuthContextType {
   user: User | null;
   login: (identifier: string, password: string) => Promise<boolean>;
-  register: (name: string, email: string, password: string, role: string) => Promise<boolean>;
+  register: (name: string, email: string, password: string) => Promise<boolean>;
   logout: () => void;
   isAuthenticated: boolean;
 }
@@ -72,7 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const userName = payload?.sub || identifier;
       
       // Lire le rôle depuis le JWT : Spring Security le met sous 'role', 'roles' ou 'authorities'
-      let role = "ROLE_ANALYSTE"; // fallback par défaut
+      let role = "ROLE_ANALYSTE_SECURITE"; // fallback par défaut
       if (payload?.role) {
         role = payload.role;
       } else if (Array.isArray(payload?.roles) && payload.roles.length > 0) {
@@ -92,12 +92,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const register = async (name: string, email: string, password: string, role: string) => {
+  const register = async (name: string, email: string, password: string) => {
     try {
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userName: name, email, password, role }), 
+        body: JSON.stringify({ userName: name, email, password }), 
       });
       
       if (!res.ok) {

@@ -360,22 +360,36 @@ public class AppScanServiceImpl implements AppScanService {
                                         }
                                     }
                                     
+                                    // MobSF embeds cvss/severity/description inside a "metadata" sub-object
+                                    com.fasterxml.jackson.databind.JsonNode metaNode = vulnNode.has("metadata") ? vulnNode.get("metadata") : vulnNode;
+
                                     String sevStr = "INFO";
                                     if (vulnNode.has("severity") && !vulnNode.get("severity").isNull()) {
                                         sevStr = vulnNode.get("severity").asText();
                                     } else if (vulnNode.has("level") && !vulnNode.get("level").isNull()) {
                                         sevStr = vulnNode.get("level").asText();
+                                    } else if (metaNode.has("severity") && !metaNode.get("severity").isNull()) {
+                                        sevStr = metaNode.get("severity").asText();
                                     }
                                     SeverityEnum sevEnum = mapSeverity(sevStr);
                                     
-                                    if (sevEnum != SeverityEnum.INFO) { 
+                                    if (sevEnum != SeverityEnum.INFO) {
+                                        // Read CVSS from metadata first (real MobSF location), fallback to root
                                         double cvss = 5.0;
-                                        if (vulnNode.has("cvss") && vulnNode.get("cvss").isNumber()) {
+                                        if (metaNode.has("cvss") && metaNode.get("cvss").isNumber()) {
+                                            cvss = metaNode.get("cvss").asDouble();
+                                        } else if (vulnNode.has("cvss") && vulnNode.get("cvss").isNumber()) {
                                             cvss = vulnNode.get("cvss").asDouble();
                                         }
+                                        log.debug("CVSS extrait pour [{}] : {}", key, cvss);
                                         
+                                        // Read description from metadata first, fallback to root
                                         String desc = "No description";
-                                        if (vulnNode.has("description") && !vulnNode.get("description").isNull()) {
+                                        if (metaNode.has("description") && !metaNode.get("description").isNull()) {
+                                            desc = metaNode.get("description").asText();
+                                        } else if (metaNode.has("desc") && !metaNode.get("desc").isNull()) {
+                                            desc = metaNode.get("desc").asText();
+                                        } else if (vulnNode.has("description") && !vulnNode.get("description").isNull()) {
                                             desc = vulnNode.get("description").asText();
                                         } else if (vulnNode.has("desc") && !vulnNode.get("desc").isNull()) {
                                             desc = vulnNode.get("desc").asText();
@@ -423,13 +437,14 @@ public class AppScanServiceImpl implements AppScanService {
                                             String desc = issue.getEffectiveDescription() != null ? issue.getEffectiveDescription() : "No description";
                                             String cwe = issue.getEffectiveCwe();
                                             String title = issue.getEffectiveTitle() != null ? issue.getEffectiveTitle() : "Manifest Issue";
+                                            double cvss = issue.getEffectiveCvss(); // real CVSS from MobSF
                                             
                                             String fullDesc = desc + " (Manifest)";
                                             if (fullDesc.length() > 255) {
                                                 fullDesc = fullDesc.substring(0, 250) + "...";
                                             }
 
-                                            Vulnerabilite v = new Vulnerabilite(null, cwe, fullDesc, sevEnum, cwe, 5.0, title, mobileScan);
+                                            Vulnerabilite v = new Vulnerabilite(null, cwe, fullDesc, sevEnum, cwe, cvss, title, mobileScan);
                                             vulnerabiliteService.saveVulnerabilite(v);
                                             totalVulnerabilities++;
                                             switch(sevEnum) {
@@ -460,13 +475,14 @@ public class AppScanServiceImpl implements AppScanService {
                                                     String desc = issue.getEffectiveDescription() != null ? issue.getEffectiveDescription() : "No description";
                                                     String cwe = issue.getEffectiveCwe();
                                                     String title = issue.getEffectiveTitle() != null ? issue.getEffectiveTitle() : entry.getKey().toString();
+                                                    double cvss = issue.getEffectiveCvss(); // real CVSS from MobSF
                                                     
                                                     String fullDesc = desc + " (Manifest)";
                                                     if (fullDesc.length() > 255) {
                                                         fullDesc = fullDesc.substring(0, 250) + "...";
                                                     }
 
-                                                    Vulnerabilite v = new Vulnerabilite(null, cwe, fullDesc, sevEnum, cwe, 5.0, title, mobileScan);
+                                                    Vulnerabilite v = new Vulnerabilite(null, cwe, fullDesc, sevEnum, cwe, cvss, title, mobileScan);
                                                     vulnerabiliteService.saveVulnerabilite(v);
                                                     totalVulnerabilities++;
                                                     switch(sevEnum) {
@@ -490,13 +506,14 @@ public class AppScanServiceImpl implements AppScanService {
                                                 String desc = issue.getEffectiveDescription() != null ? issue.getEffectiveDescription() : "No description";
                                                 String cwe = issue.getEffectiveCwe();
                                                 String title = issue.getEffectiveTitle() != null ? issue.getEffectiveTitle() : entry.getKey().toString();
+                                                double cvss = issue.getEffectiveCvss(); // real CVSS from MobSF
                                                 
                                                 String fullDesc = desc + " (Manifest)";
                                                 if (fullDesc.length() > 255) {
                                                     fullDesc = fullDesc.substring(0, 250) + "...";
                                                 }
 
-                                                Vulnerabilite v = new Vulnerabilite(null, cwe, fullDesc, sevEnum, cwe, 5.0, title, mobileScan);
+                                                Vulnerabilite v = new Vulnerabilite(null, cwe, fullDesc, sevEnum, cwe, cvss, title, mobileScan);
                                                 vulnerabiliteService.saveVulnerabilite(v);
                                                 totalVulnerabilities++;
                                                 switch(sevEnum) {
@@ -561,18 +578,28 @@ public class AppScanServiceImpl implements AppScanService {
     }
 
     private String extractCweDynamically(com.fasterxml.jackson.databind.JsonNode vulnNode, String contextKey) {
-        if (vulnNode.has("cwe") && !vulnNode.get("cwe").asText().trim().isEmpty()) {
-            String cwe = vulnNode.get("cwe").asText().trim();
-            log.info("CWE détecté depuis code_analysis (champ cwe) pour [{}] : {}", contextKey, cwe);
+        // MobSF wraps CWE, CVSS, OWASP inside a "metadata" sub-object per finding.
+        // We must check metadata first, then fall back to the root node.
+        com.fasterxml.jackson.databind.JsonNode meta = vulnNode.has("metadata") ? vulnNode.get("metadata") : vulnNode;
+
+        if (meta.has("cwe") && !meta.get("cwe").asText("").trim().isEmpty() && !"None".equalsIgnoreCase(meta.get("cwe").asText("").trim())) {
+            String cwe = meta.get("cwe").asText().trim();
+            log.info("CWE détecté depuis metadata (champ cwe) pour [{}] : {}", contextKey, cwe);
             return cwe;
-        } else if (vulnNode.has("owasp") && !vulnNode.get("owasp").asText().trim().isEmpty()) {
-            String owasp = vulnNode.get("owasp").asText().trim();
-            log.info("CWE détecté depuis code_analysis (fallback owasp) pour [{}] : {}", contextKey, owasp);
-            return owasp;
-        } else if (vulnNode.has("owasp-mobile") && !vulnNode.get("owasp-mobile").asText().trim().isEmpty()) {
-            String owaspMobile = vulnNode.get("owasp-mobile").asText().trim();
-            log.info("CWE détecté depuis code_analysis (fallback owasp-mobile) pour [{}] : {}", contextKey, owaspMobile);
+        }
+        if (meta.has("owasp-mobile") && !meta.get("owasp-mobile").asText("").trim().isEmpty() && !"None".equalsIgnoreCase(meta.get("owasp-mobile").asText("").trim())) {
+            String owaspMobile = meta.get("owasp-mobile").asText().trim();
+            log.info("CWE détecté depuis metadata (fallback owasp-mobile) pour [{}] : {}", contextKey, owaspMobile);
             return owaspMobile;
+        }
+        if (meta.has("owasp") && !meta.get("owasp").asText("").trim().isEmpty() && !"None".equalsIgnoreCase(meta.get("owasp").asText("").trim())) {
+            String owasp = meta.get("owasp").asText().trim();
+            log.info("CWE détecté depuis metadata (fallback owasp) pour [{}] : {}", contextKey, owasp);
+            return owasp;
+        }
+        // Fallback: search directly at root level (for non-standard MobSF responses)
+        if (vulnNode.has("cwe") && !vulnNode.get("cwe").asText("").trim().isEmpty() && !"None".equalsIgnoreCase(vulnNode.get("cwe").asText("").trim())) {
+            return vulnNode.get("cwe").asText().trim();
         }
         log.debug("Aucun CWE ou OWASP trouvé pour la vulnérabilité : {}", contextKey);
         return "N/A";

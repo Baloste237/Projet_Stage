@@ -83,8 +83,8 @@ export const UserManagement = () => {
                       value={user.role}
                       onChange={(e) => handleChangeRole(user, e.target.value)}
                     >
-                      <option value="ROLE_ANALYSTE">Analyste</option>
-                      <option value="ROLE_ADMIN">Admin</option>
+                      <option value="ROLE_ANALYSTE_SECURITE">Analyste Sécurité</option>
+                      <option value="ROLE_ADMIN">Administrateur</option>
                     </select>
                   </div>
                 </td>

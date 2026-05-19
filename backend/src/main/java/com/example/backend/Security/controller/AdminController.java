@@ -65,7 +65,7 @@ public class AdminController {
             summary = "Changer le rôle d'un utilisateur",
             description = """
                     Modifie le rôle d'un utilisateur existant.
-                    Rôles disponibles : `ROLE_ADMIN`, `ROLE_ANALYSTE`.
+                    Rôles disponibles : `ROLE_ADMIN`, `ROLE_ANALYSTE_SECURITE`.
                     Le préfixe `ROLE_` est ajouté automatiquement s'il est absent.
                     """
     )

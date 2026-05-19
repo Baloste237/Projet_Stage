@@ -39,6 +39,7 @@ public class UserInfoServiceImpl implements UserInfoService {
         }
 
         UserInfo userInfo= UserInfoMapper.toEntity(userInfoDto);
+        userInfo.setRole(com.example.backend.user.domain.Role.ROLE_ANALYSTE_SECURITE);
         userInfo.setPassword(passwordEncoder.encode(userInfo.getPassword()));
         userInfoRepository.save(userInfo);
 
@@ -54,7 +55,7 @@ public class UserInfoServiceImpl implements UserInfoService {
             String role = authentication.getAuthorities().stream()
                     .findFirst()
                     .map(a -> a.getAuthority())
-                    .orElse("ROLE_ANALYSTE");
+                    .orElse("ROLE_ANALYSTE_SECURITE");
             java.util.Map<String, Object> claims = new java.util.HashMap<>();
             claims.put("role", role);
             return jwtService.generateToken(authentication.getName(), claims);

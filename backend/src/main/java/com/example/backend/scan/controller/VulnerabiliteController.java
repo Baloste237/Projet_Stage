@@ -50,7 +50,7 @@ public class VulnerabiliteController {
             @ApiResponse(responseCode = "404", description = "Scan non trouvé avec l'ID spécifié")
     })
     @GetMapping("/scan/{scanId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ANALYSTE')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ANALYSTE_SECURITE')")
     public ResponseEntity<List<Vulnerabilite>> getVulnerabilitesByScanId(
             @Parameter(description = "ID du scan dont on veut récupérer les vulnérabilités", required = true, example = "1")
             @PathVariable Long scanId) {
@@ -81,7 +81,7 @@ public class VulnerabiliteController {
             @ApiResponse(responseCode = "403", description = "Accès refusé — Rôle ADMIN ou ANALYSTE requis")
     })
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'ANALYSTE')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ANALYSTE_SECURITE')")
     public ResponseEntity<Page<Vulnerabilite>> getFilteredVulnerabilities(
             @Parameter(description = "Numéro de page (commence à 0)", example = "0")
             @RequestParam(defaultValue = "0") int page,

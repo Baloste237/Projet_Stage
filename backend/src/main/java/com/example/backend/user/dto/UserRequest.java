@@ -11,7 +11,7 @@ public class UserRequest {
     @Schema(description = "Mot de passe de l'utilisateur", example = "S3cur3P@ss!", requiredMode = Schema.RequiredMode.REQUIRED, accessMode = Schema.AccessMode.WRITE_ONLY)
     private String password;
 
-    @Schema(description = "Rôle assigné à l'utilisateur", example = "ROLE_ANALYSTE")
+    @Schema(description = "Rôle assigné à l'utilisateur", example = "ROLE_ANALYSTE_SECURITE")
     private Role role;
 
     public String getUsername() { return username; }

@@ -25,7 +25,6 @@ public class UserInfo {
     @Schema(description = "Mot de passe hashé (BCrypt)", accessMode = Schema.AccessMode.WRITE_ONLY)
     private String password;
 
-    @Enumerated(EnumType.STRING)
     @Schema(description = "Rôle de l'utilisateur", example = "ROLE_ADMIN")
     private Role role;
     

@@ -99,7 +99,14 @@ public class MobSFScanResponse {
         public String getEffectiveTitle() {
             return (title != null) ? title : name;
         }
-        public String getEffectiveCwe() {
+        @JsonProperty("cvss")
+        private Double cvss;
+
+        public Double getEffectiveCvss() {
+            return (cvss != null && cvss > 0) ? cvss : 5.0;
+        }
+
+                public String getEffectiveCwe() {
             if (cwe != null && !cwe.trim().isEmpty()) return cwe;
             if (owasp != null && !owasp.trim().isEmpty()) return owasp;
             return "N/A";

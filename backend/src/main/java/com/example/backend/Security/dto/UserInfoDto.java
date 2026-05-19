@@ -13,7 +13,7 @@ public class UserInfoDto {
     @Schema(description = "Mot de passe (hashé en BCrypt côté serveur)", example = "P@ssw0rd!2024", requiredMode = Schema.RequiredMode.REQUIRED, accessMode = Schema.AccessMode.WRITE_ONLY)
     private String password;
 
-    @Schema(description = "Rôle de l'utilisateur", example = "ROLE_ANALYSTE", allowableValues = {"ROLE_ADMIN", "ROLE_ANALYSTE"})
+    @Schema(description = "Rôle de l'utilisateur", example = "ROLE_ANALYSTE_SECURITE", allowableValues = {"ROLE_ADMIN", "ROLE_ANALYSTE_SECURITE"})
     private String role;
 
     public UserInfoDto(String userName, String email, String password, String role) {

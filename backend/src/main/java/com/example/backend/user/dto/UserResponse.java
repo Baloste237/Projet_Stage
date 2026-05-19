@@ -11,7 +11,7 @@ public class UserResponse {
     @Schema(description = "Nom d'utilisateur", example = "analyste_dupont")
     private String username;
 
-    @Schema(description = "Rôle de l'utilisateur", example = "ROLE_ANALYSTE")
+    @Schema(description = "Rôle de l'utilisateur", example = "ROLE_ANALYSTE_SECURITE")
     private Role role;
 
     public Long getId() { return id; }
