@@ -50,10 +50,25 @@ public class AppScanResponseDTO {
     @Schema(description = "Date et heure de fin du scan", example = "2026-05-12T10:32:15")
     private LocalDateTime completedAt;
 
+    @Schema(description = "Progression du scan (0-100)", example = "45")
+    private int progress;
+
+    @Schema(description = "Étape actuelle du scan", example = "Analyse statique en cours")
+    private String currentStep;
+
+    @Schema(description = "Logs du scan")
+    private String logs;
+
+    @Schema(description = "Date de début réel du scan")
+    private LocalDateTime startedAt;
+
+    @Schema(description = "Temps d'exécution en ms")
+    private Long executionTime;
+
     public AppScanResponseDTO() {
     }
 
-    public AppScanResponseDTO(Long id, String projectName, String fileName, String filePath, ScanType scanType, ScanStatus status, int totalVulnerabilities, int criticalCount, int highCount, int mediumCount, int lowCount, LocalDateTime createdAt, LocalDateTime completedAt) {
+    public AppScanResponseDTO(Long id, String projectName, String fileName, String filePath, ScanType scanType, ScanStatus status, int totalVulnerabilities, int criticalCount, int highCount, int mediumCount, int lowCount, LocalDateTime createdAt, LocalDateTime completedAt, int progress, String currentStep, String logs, LocalDateTime startedAt, Long executionTime) {
         this.id = id;
         this.projectName = projectName;
         this.fileName = fileName;
@@ -67,6 +82,11 @@ public class AppScanResponseDTO {
         this.lowCount = lowCount;
         this.createdAt = createdAt;
         this.completedAt = completedAt;
+        this.progress = progress;
+        this.currentStep = currentStep;
+        this.logs = logs;
+        this.startedAt = startedAt;
+        this.executionTime = executionTime;
     }
 
     public static AppScanResponseDTOBuilder builder() {
@@ -112,6 +132,21 @@ public class AppScanResponseDTO {
     public LocalDateTime getCompletedAt() { return completedAt; }
     public void setCompletedAt(LocalDateTime completedAt) { this.completedAt = completedAt; }
 
+    public int getProgress() { return progress; }
+    public void setProgress(int progress) { this.progress = progress; }
+
+    public String getCurrentStep() { return currentStep; }
+    public void setCurrentStep(String currentStep) { this.currentStep = currentStep; }
+
+    public String getLogs() { return logs; }
+    public void setLogs(String logs) { this.logs = logs; }
+
+    public LocalDateTime getStartedAt() { return startedAt; }
+    public void setStartedAt(LocalDateTime startedAt) { this.startedAt = startedAt; }
+
+    public Long getExecutionTime() { return executionTime; }
+    public void setExecutionTime(Long executionTime) { this.executionTime = executionTime; }
+
     public static class AppScanResponseDTOBuilder {
         private Long id;
         private String projectName;
@@ -126,6 +161,11 @@ public class AppScanResponseDTO {
         private int lowCount;
         private LocalDateTime createdAt;
         private LocalDateTime completedAt;
+        private int progress;
+        private String currentStep;
+        private String logs;
+        private LocalDateTime startedAt;
+        private Long executionTime;
 
         AppScanResponseDTOBuilder() {
         }
@@ -143,9 +183,14 @@ public class AppScanResponseDTO {
         public AppScanResponseDTOBuilder lowCount(int lowCount) { this.lowCount = lowCount; return this; }
         public AppScanResponseDTOBuilder createdAt(LocalDateTime createdAt) { this.createdAt = createdAt; return this; }
         public AppScanResponseDTOBuilder completedAt(LocalDateTime completedAt) { this.completedAt = completedAt; return this; }
+        public AppScanResponseDTOBuilder progress(int progress) { this.progress = progress; return this; }
+        public AppScanResponseDTOBuilder currentStep(String currentStep) { this.currentStep = currentStep; return this; }
+        public AppScanResponseDTOBuilder logs(String logs) { this.logs = logs; return this; }
+        public AppScanResponseDTOBuilder startedAt(LocalDateTime startedAt) { this.startedAt = startedAt; return this; }
+        public AppScanResponseDTOBuilder executionTime(Long executionTime) { this.executionTime = executionTime; return this; }
 
         public AppScanResponseDTO build() {
-            return new AppScanResponseDTO(id, projectName, fileName, filePath, scanType, status, totalVulnerabilities, criticalCount, highCount, mediumCount, lowCount, createdAt, completedAt);
+            return new AppScanResponseDTO(id, projectName, fileName, filePath, scanType, status, totalVulnerabilities, criticalCount, highCount, mediumCount, lowCount, createdAt, completedAt, progress, currentStep, logs, startedAt, executionTime);
         }
     }
 }

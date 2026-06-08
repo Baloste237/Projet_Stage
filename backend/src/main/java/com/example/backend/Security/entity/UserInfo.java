@@ -25,6 +25,8 @@ public class UserInfo {
     @Schema(description = "Mot de passe hashé (BCrypt)", accessMode = Schema.AccessMode.WRITE_ONLY)
     private String password;
 
+    @Convert(converter = com.example.backend.user.domain.RoleConverter.class)
+    @Column(columnDefinition = "varchar(255)")
     @Schema(description = "Rôle de l'utilisateur", example = "ROLE_ADMIN")
     private Role role;
     

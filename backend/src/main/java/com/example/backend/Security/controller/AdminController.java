@@ -93,7 +93,7 @@ public class AdminController {
         if (!roleStr.startsWith("ROLE_")) {
             roleStr = "ROLE_" + roleStr;
         }
-        Role newRole = Role.valueOf(roleStr.toUpperCase());
+        Role newRole = Role.fromString(roleStr);
         return ResponseEntity.ok(adminService.changeUserRole(id, newRole));
     }
 }

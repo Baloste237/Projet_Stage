@@ -91,6 +91,7 @@ public class SecurityConfig {
                         ).permitAll()
 
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/api/stats/**").hasAnyRole("ADMIN", "ANALYSTE_SECURITE")
                         .anyRequest().authenticated()
                 );
 

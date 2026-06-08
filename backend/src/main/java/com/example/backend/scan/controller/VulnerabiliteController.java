@@ -24,11 +24,13 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import jakarta.persistence.criteria.Predicate;
+import org.springframework.transaction.annotation.Transactional;
 
 @RestController
 @RequestMapping("/api/v1/vulnerabilities") // Mise à jour pour respecter REST api/v1
 @CrossOrigin(origins = "*")
 @Tag(name = "Vulnérabilités", description = "Consultation, filtrage avancé et suppression des vulnérabilités détectées")
+@Transactional(readOnly = true) // Nécessaire pour éviter "Unable to access lob stream" de Postgres pendant la sérialisation JSON des champs @Lob
 public class VulnerabiliteController {
 
     private final VulnerabiliteService vulnerabiliteService;
@@ -37,6 +39,47 @@ public class VulnerabiliteController {
     public VulnerabiliteController(VulnerabiliteService vulnerabiliteService, VulnerabiliteRepository vulnerabiliteRepository) {
         this.vulnerabiliteService = vulnerabiliteService;
         this.vulnerabiliteRepository = vulnerabiliteRepository;
+    }
+
+    public static class ScanDTO {
+        public Long id;
+        public String projectName;
+        public ScanDTO(Long id, String projectName) {
+            this.id = id;
+            this.projectName = projectName;
+        }
+    }
+
+    public static class VulnDTO {
+        public Long id;
+        public String type;
+        public String description;
+        public SeverityEnum niv_grav;
+        public String cweId;
+        public Double cvssScore;
+        public String owaspcat;
+        public String targetFile;
+        public Integer targetLine;
+        public String status;
+        public String recommendation;
+        public ScanDTO scan;
+        
+        public VulnDTO(Vulnerabilite v) {
+            this.id = v.getId();
+            this.type = v.getType();
+            this.description = v.getDescription();
+            this.niv_grav = v.getNiv_grav();
+            this.cweId = v.getCweId();
+            this.cvssScore = v.getCvssScore();
+            this.owaspcat = v.getOwaspcat();
+            this.targetFile = v.getTargetFile();
+            this.targetLine = v.getTargetLine();
+            this.status = v.getStatus();
+            this.recommendation = v.getRecommendation();
+            if (v.getScan() != null) {
+                this.scan = new ScanDTO(v.getScan().getId(), v.getScan().getProjectName());
+            }
+        }
     }
 
     @Operation(
@@ -51,11 +94,12 @@ public class VulnerabiliteController {
     })
     @GetMapping("/scan/{scanId}")
     @PreAuthorize("hasAnyRole('ADMIN', 'ANALYSTE_SECURITE')")
-    public ResponseEntity<List<Vulnerabilite>> getVulnerabilitesByScanId(
+    public ResponseEntity<List<VulnDTO>> getVulnerabilitesByScanId(
             @Parameter(description = "ID du scan dont on veut récupérer les vulnérabilités", required = true, example = "1")
             @PathVariable Long scanId) {
         List<Vulnerabilite> vulnerabilites = vulnerabiliteService.getVulnerabilitesByScanId(scanId);
-        return ResponseEntity.ok(vulnerabilites);
+        List<VulnDTO> dtos = vulnerabilites.stream().map(VulnDTO::new).collect(java.util.stream.Collectors.toList());
+        return ResponseEntity.ok(dtos);
     }
     
     @Operation(
@@ -82,7 +126,7 @@ public class VulnerabiliteController {
     })
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'ANALYSTE_SECURITE')")
-    public ResponseEntity<Page<Vulnerabilite>> getFilteredVulnerabilities(
+    public ResponseEntity<Page<VulnDTO>> getFilteredVulnerabilities(
             @Parameter(description = "Numéro de page (commence à 0)", example = "0")
             @RequestParam(defaultValue = "0") int page,
             @Parameter(description = "Nombre d'éléments par page", example = "20")
@@ -126,7 +170,8 @@ public class VulnerabiliteController {
         
         Pageable pageable = PageRequest.of(page, size, Sort.by("id").descending());
         Page<Vulnerabilite> resultPage = vulnerabiliteRepository.findAll(spec, pageable);
-        return ResponseEntity.ok(resultPage);
+        Page<VulnDTO> dtoPage = resultPage.map(VulnDTO::new);
+        return ResponseEntity.ok(dtoPage);
     }
 
     @Operation(
@@ -141,8 +186,9 @@ public class VulnerabiliteController {
     })
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
+    @Transactional // Permet la suppression en transaction
     public ResponseEntity<Void> deleteVulnerabilite(
-            @Parameter(description = "ID unique de la vulnérabilité", required = true, example = "42")
+            @Parameter(description = "ID de la vulnérabilité à supprimer", required = true, example = "1")
             @PathVariable Long id) {
         vulnerabiliteService.deleteVulnerabilite(id);
         return ResponseEntity.ok().build();

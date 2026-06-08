@@ -119,7 +119,7 @@ public class AdminMonitoringController {
         long webScans = allScans.stream().filter(s -> s instanceof com.example.backend.scan.entity.WebAppScan).count();
         long mobileScans = allScans.stream().filter(s -> s instanceof com.example.backend.scan.entity.MobileAppScan).count();
         long failedScans = allScans.stream().filter(s -> s.getStatus() == ScanStatus.FAILED).count();
-        long successScans = allScans.stream().filter(s -> s.getStatus() == ScanStatus.DONE).count();
+        long successScans = allScans.stream().filter(s -> s.getStatus() == ScanStatus.COMPLETED).count();
         long activeUsers = userInfoRepository.count();
 
         List<Vulnerabilite> allVulns = vulnerabiliteRepository.findAll();

@@ -25,6 +25,15 @@ public class BackendApplication {
 			} catch (Exception e) {
 				System.out.println("Role migration skipped or failed: " + e.getMessage());
 			}
+			try {
+				jdbcTemplate.execute("ALTER TABLE scan_history DROP CONSTRAINT IF EXISTS scan_history_nivmax_cri_check");
+				jdbcTemplate.execute("ALTER TABLE scan_history DROP CONSTRAINT IF EXISTS scan_history_nivmaxCri_check");
+				jdbcTemplate.execute("ALTER TABLE vulnerabilites DROP CONSTRAINT IF EXISTS vulnerabilites_niv_grav_check");
+				jdbcTemplate.execute("ALTER TABLE vulnerabilites DROP CONSTRAINT IF EXISTS vulnerabilites_nivGrav_check");
+				System.out.println("SeverityEnum check constraints dropped successfully.");
+			} catch (Exception e) {
+				System.out.println("SeverityEnum check constraints drop skipped or failed: " + e.getMessage());
+			}
 		};
 	}
 }

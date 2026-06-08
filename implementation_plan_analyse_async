@@ -1,0 +1,115 @@
+# Plan : Implémentation complète du Scan Asynchrone
+
+## Contexte
+
+Le scan asynchrone est partiellement implémenté. Voici les **lacunes actuelles** :
+
+| Élément | Problème |
+|---|---|
+| `AbstractScan.java` | Champs manquants : `progress`, `currentStep`, `logs`, `startedAt`, `executionTime` |
+| `AppScanResponseDTO.java` | Mêmes champs manquants côté DTO |
+| `AppScanController.java` | Endpoint `/api/v1/analyze/{id}/progress` absent (le frontend le poll déjà) |
+| `AppScanServiceImpl.java` | `setProgress()`, `setCurrentStep()`, `setLogs()` appellent des méthodes inexistantes |
+| Async Thread Pool | Pas de `ThreadPoolTaskExecutor` configuré (l'`@Async` tourne sur un pool par défaut limité) |
+| `ScanMobile.tsx` | N'a pas de polling temps-réel comme `ScanWeb.tsx` – barre de progression artificielle |
+
+> [!IMPORTANT]
+> Aucune modification de la logique métier existante. On ajoute uniquement les champs manquants et le polling.
+
+---
+
+## Proposed Changes
+
+### Backend
+
+---
+
+#### [MODIFY] [AbstractScan.java](file:///e:/Projet_stage/Projet_Stage/backend/src/main/java/com/example/backend/scan/entity/AbstractScan.java)
+
+Ajouter les champs manquants pour le suivi asynchrone :
+- `int progress` (0-100)
+- `String currentStep` — étape courante ("Extraction", "Analyse IA", etc.)
+- `String logs` (TEXT) — logs d'exécution cumulatifs
+- `LocalDateTime startedAt` — heure de début réelle
+- `Long executionTime` — durée en millisecondes
+
+---
+
+#### [MODIFY] [AppScanResponseDTO.java](file:///e:/Projet_stage/Projet_Stage/backend/src/main/java/com/example/backend/scan/dto/AppScanResponseDTO.java)
+
+Ajouter les mêmes champs + leurs getters/setters/builder.
+
+---
+
+#### [NEW] AsyncConfig.java — `com.example.backend.scan.Config`
+
+Configurer un `ThreadPoolTaskExecutor` nommé `scanTaskExecutor` avec :
+- `corePoolSize = 3`
+- `maxPoolSize = 10`
+- `queueCapacity = 50`
+- `threadNamePrefix = "scan-async-"`
+
+---
+
+#### [MODIFY] [AppScanController.java](file:///e:/Projet_stage/Projet_Stage/backend/src/main/java/com/example/backend/scan/controller/AppScanController.java)
+
+Ajouter l'endpoint manquant :
+- `GET /api/v1/analyze/{id}/progress` → retourne `AppScanResponseDTO` avec les champs de progression
+
+---
+
+#### [MODIFY] [AppScanServiceImpl.java](file:///e:/Projet_stage/Projet_Stage/backend/src/main/java/com/example/backend/scan/service/AppScanServiceImpl.java)
+
+Ajouter les mises à jour de progression dans `executeSastScan()` :
+
+**Web scan** :
+- `10%` → Extraction du ZIP
+- `30%` → Scan SAST local (regex)
+- `60%` → Analyse IA
+- `90%` → Sauvegarde
+- `100%` → Terminé
+
+**Mobile scan** :
+- `15%` → Upload vers MobSF
+- `40%` → Analyse MobSF lancée
+- `60%` → Traitement code_analysis
+- `75%` → Traitement manifest
+- `90%` → Traitement permissions
+- `100%` → Terminé
+
+Ajouter une méthode utilitaire `updateScanProgress(scan, pct, step, logLine)` qui sauvegarde en BDD après chaque mise à jour.
+
+---
+
+### Frontend
+
+---
+
+#### [MODIFY] [ScanMobile.tsx](file:///e:/Projet_stage/Projet_Stage/app-shield-pro/src/pages/ScanMobile.tsx)
+
+Refactoriser pour utiliser le même pattern de polling que `ScanWeb.tsx` :
+- Après soumission → sauvegarder `activeScanId_mobile` dans `localStorage`
+- Démarrer un polling `setInterval` toutes les **3 secondes** sur `/api/v1/analyze/{id}/progress`
+- Afficher la progression réelle, le `currentStep`, les logs et le badge de statut
+- Stopper le polling quand `status === COMPLETED | FAILED | CANCELLED`
+- Persister le scan actif entre les navigations (via `localStorage`)
+
+---
+
+## Verification Plan
+
+### Automated Tests
+```bash
+# Build backend
+./mvnw clean package -DskipTests -f backend/pom.xml
+
+# Dev frontend
+npm run dev --prefix app-shield-pro
+```
+
+### Manual Verification
+1. Lancer un scan Web → vérifier que la progression monte en temps réel
+2. Naviguer vers une autre page pendant le scan → revenir sur `/scan-web` et vérifier que le polling reprend
+3. Lancer un scan Mobile → vérifier le même comportement
+4. Tester `GET /api/v1/analyze/{id}/progress` via Swagger UI
+5. Vérifier les logs serveur pour confirmer que le pool de threads est utilisé

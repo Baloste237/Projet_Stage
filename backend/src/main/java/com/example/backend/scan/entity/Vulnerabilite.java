@@ -56,6 +56,7 @@ public class Vulnerabilite {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "scan_id")
     @Schema(description = "Scan parent associé à cette vulnérabilité")
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "logs", "rawCodeAnalysis"})
     private AbstractScan scan;
 
     public Vulnerabilite() {

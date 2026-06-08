@@ -1,0 +1,40 @@
+# Implémentation Page Statistiques Dynamique OWASP
+
+Les fonctionnalités demandées pour rendre la page de Statistiques dynamique et professionnelle ont été développées de bout en bout, en conservant l'architecture existante de l'application et sans briser l'existant.
+
+Voici le résumé détaillé du travail effectué :
+
+## 1. Backend: API et Logique Métier (Spring Boot)
+
+*   **Création de DTOs Dédiés** :
+    *   `StatsWebDTO`, `StatsMobileDTO`, `DashboardStatsDTO` pour organiser les données renvoyées.
+    *   `OwaspCategoryDTO` pour structurer la répartition par catégorie.
+    *   `ScanTrendDTO` pour les statistiques d'évolution mensuelle.
+*   **Requêtes JPA Optimisées** :
+    *   Ajout de requêtes JPQL complexes dans `VulnerabiliteRepository` pour déléguer les calculs lourds (ex: compte par gravité, dates du dernier scan, moyenne du risque CVSS, projet le plus vulnérable) directement à la base de données PostgreSQL.
+    *   Cela évite le problème courant des "N+1 queries" et assure d'excellentes performances.
+*   **Service de Classification OWASP (`StatsServiceImpl`)** :
+    *   Développement d'un système intelligent de mapping basé sur des mots-clés (`OWASP_WEB_KEYWORDS`, `OWASP_MOBILE_KEYWORDS`) qui analyse automatiquement chaque vulnérabilité détectée et la rattache à l'une des catégories du top 10 approprié (Web ou Mobile 2024).
+*   **Contrôleur REST Sécurisé** :
+    *   Création de `StatsController` avec les endpoints `/api/stats/dashboard`, `/api/stats/web` et `/api/stats/mobile`.
+    *   Sécurisation des accès via l'annotation `@PreAuthorize("hasAnyRole('ADMIN', 'ANALYSTE_SECURITE')")`.
+    *   Mise à jour de `SecurityConfig.java` pour intégrer ces nouvelles routes dans la politique de sécurité.
+
+## 2. Frontend: Interface Dynamique (React + Tailwind)
+
+*   **Service d'API** :
+    *   Création de `statsService.ts` avec la configuration des headers et les types d'interfaces TypeScript correspondant aux DTOs Backend.
+*   **Page Interactive `Statistics.tsx`** :
+    *   Refonte complète pour utiliser `@tanstack/react-query` afin de lier les composants aux données réelles de la base.
+    *   Séparation visuelle nette :
+        *   **OWASP Top Web Vulnerabilities** (Thème Bleu/Gris)
+        *   **OWASP Mobile Top 10 (2024)** (Thème Violet/Gris)
+    *   **Composants graphiques (Recharts)** :
+        *   `PieChart` pour la répartition de la sévérité.
+        *   `LineChart` pour l'évolution temporelle des vulnérabilités sur les 12 derniers mois.
+        *   `BarChart` (Horizontal) pour comparer le nombre de vulnérabilités par catégorie OWASP.
+    *   Intégration du composant `StatsSkeletonLoader.tsx` qui affiche une animation de chargement élégante pendant l'appel réseau, assurant une expérience utilisateur fluide.
+
+## Résultats
+
+L'application intègre maintenant un tableau de bord analytique digne des standards de cybersécurité professionnels, fournissant des statistiques réelles, une séparation métier claire entre web/mobile et respectant les exigences de sécurité strictes.

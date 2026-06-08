@@ -20,7 +20,7 @@ public class UserInfoMapper {
             userInfoDto.getUserName(),
             userInfoDto.getEmail(),
             userInfoDto.getPassword(),
-            userInfoDto.getRole() != null ? Role.valueOf(userInfoDto.getRole()) : Role.ROLE_ANALYSTE_SECURITE
+            userInfoDto.getRole() != null ? Role.fromString(userInfoDto.getRole()) : Role.ROLE_ANALYSTE_SECURITE
         );
     }
 }

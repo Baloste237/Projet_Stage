@@ -114,8 +114,33 @@ public class AppScanController {
 
         log.info("Received request to analyze {} code for project: {}", appType, projectName);
         AppScanResponseDTO response = appScanService.processScan(appType, file, projectName);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(response);
     }
+
+    @GetMapping("/running")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ANALYSTE_SECURITE')")
+    public ResponseEntity<List<AbstractScan>> getRunningScans() {
+        // Here we just filter the all scans for RUNNING or PENDING. A real impl would query the DB.
+        // I will do it here by fetching all and filtering, or we can use a custom query later.
+        Pageable pageable = PageRequest.of(0, 50, Sort.by("createdAt").descending());
+        List<AbstractScan> running = appScanService.getAllScans(pageable).stream()
+                .filter(s -> s.getStatus() == com.example.backend.scan.entity.ScanStatus.RUNNING || s.getStatus() == com.example.backend.scan.entity.ScanStatus.PENDING)
+                .toList();
+        return ResponseEntity.ok(running);
+    }
+
+    @GetMapping("/{id}/progress")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ANALYSTE_SECURITE')")
+    public ResponseEntity<AbstractScan> getScanProgress(@PathVariable Long id) {
+        return ResponseEntity.ok(appScanService.getScanById(id));
+    }
+
+    @GetMapping("/{id}/status")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ANALYSTE_SECURITE')")
+    public ResponseEntity<String> getScanStatus(@PathVariable Long id) {
+        return ResponseEntity.ok(appScanService.getScanById(id).getStatus().name());
+    }
+
 
     /**
      * Endpoint to retrieve all scans.

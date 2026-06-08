@@ -20,16 +20,6 @@ public class RoleConverter implements AttributeConverter<Role, String> {
             return null;
         }
         
-        // Handle legacy roles seamlessly
-        if ("ROLE_ANALYSTE".equals(dbData)) {
-            return Role.ROLE_ANALYSTE_SECURITE;
-        }
-        
-        try {
-            return Role.valueOf(dbData);
-        } catch (IllegalArgumentException e) {
-            // Fallback for unknown roles to prevent crashing the whole app
-            return Role.ROLE_ANALYSTE_SECURITE;
-        }
+        return Role.fromString(dbData);
     }
 }

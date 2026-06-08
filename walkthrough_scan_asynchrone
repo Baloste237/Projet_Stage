@@ -1,0 +1,47 @@
+# Implémentation du Scan de Sécurité Asynchrone et Temps Réel
+
+Les fonctionnalités permettant le lancement et le suivi des scans de sécurité en arrière-plan ont été entièrement implémentées de bout en bout. Ce système permet à l'utilisateur de soumettre un projet et de naviguer librement dans l'application pendant que l'analyse est effectuée de manière asynchrone par les threads serveurs, avec un retour visuel en temps réel sur la progression.
+
+---
+
+## 1. Backend: Architecture Asynchrone (Spring Boot)
+
+*   **Configuration du Pool de Threads Dédié (`AsyncConfig.java`)** :
+    *   Mise en place d'un `ThreadPoolTaskExecutor` nommé `scanTaskExecutor` configuré spécialement pour supporter le multithreading des scans.
+    *   Paramètres optimisés : `corePoolSize = 3`, `maxPoolSize = 10`, `queueCapacity = 50`, préfixe des threads `scan-async-` pour un monitoring aisé.
+*   **Logique de Tâches Asynchrones (`AsyncExecutorService.java`)** :
+    *   Cible de manière explicite le pool `scanTaskExecutor` via l'annotation `@Async("scanTaskExecutor")` pour éviter toute saturation ou blocage des threads de requêtes REST HTTP principaux.
+*   **Mise à jour en Temps Réel (`AppScanServiceImpl.java`)** :
+    *   Développement d'une méthode utilitaire `updateScanProgress()` qui gère la mise à jour atomique des données d'exécution (`progress`, `currentStep`, `logs` cumulés) et persiste ces données en base de données.
+    *   **Phases de Progression pour le Scan Web** :
+        *   `5%` : Initialisation de l'analyse.
+        *   `10%` : Extraction sécurisée de l'archive ZIP.
+        *   `30%` : Lancement de l'analyse locale (moteur regex multi-langages).
+        *   `60%` : Lancement de l'analyse avancée par Intelligence Artificielle.
+        *   `90%` : Finalisation et sauvegarde.
+        *   `100%` : Scan terminé avec succès.
+    *   **Phases de Progression pour le Scan Mobile** :
+        *   `15%` : Téléversement de l'APK vers le serveur MobSF.
+        *   `40%` : Démarrage de l'analyse statique MobSF.
+        *   `60%` : Traitement de l'analyse du code source (Code Analysis).
+        *   `75%` : Traitement du Manifest (`AndroidManifest.xml`).
+        *   `90%` : Vérification des permissions dangereuses.
+        *   `100%` : Scan mobile terminé avec succès.
+    *   **Calcul de la durée de l'analyse** : La durée exacte du scan est désormais calculée dynamiquement à la fin de la tâche grâce au temps écoulé entre `startedAt` et le moment final, puis enregistrée dans `executionTime`.
+
+---
+
+## 2. Frontend: UX Réel et Polling Dynamique (React)
+
+*   **Refactorisation de `ScanMobile.tsx`** :
+    *   Remplacement de la simulation artificielle de progression par un **polling dynamique en temps réel** (requêtes toutes les **3 secondes** sur `/api/v1/analyze/{id}/progress`).
+    *   Persistance du scan actif en cours d'exécution dans le `localStorage` de l'utilisateur (`activeScanId_mobile`). Cela garantit que si l'utilisateur quitte la page de scan mobile et revient plus tard, l'état d'avancement réel et les logs en cours se restaurent instantanément.
+    *   Affichage d'un panneau de suivi visuel dynamique sous forme de carte premium : progression en %, badge de statut, étape actuelle et terminal de logs défilants.
+    *   Filtrage de l'historique pour ne conserver que les analyses d'applications mobiles réelles (.apk/.ipa).
+
+---
+
+## Résultats de la Validation
+
+*   **Thread Safety** : L'utilisation d'une configuration asynchrone dédiée garantit qu'aucun appel bloquant ne paralyse l'application web ou l'API REST.
+*   **Fluidité de l'UX** : Les utilisateurs disposent à présent d'une interface robuste et réactive identique pour les deux modes de scan (Web et Mobile).

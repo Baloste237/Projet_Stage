@@ -67,6 +67,23 @@ public abstract class AbstractScan {
     @Schema(description = "Date de fin du scan", example = "2026-05-12T10:32:15")
     private LocalDateTime completedAt;
 
+    @Column(nullable = false, columnDefinition = "integer default 0")
+    @Schema(description = "Progression du scan (0-100)", example = "45")
+    private int progress = 0;
+
+    @Schema(description = "Étape actuelle du scan", example = "Analyse statique en cours")
+    private String currentStep;
+
+    @Lob
+    @Schema(description = "Logs détaillés du scan")
+    private String logs;
+
+    @Schema(description = "Date de début réel du scan")
+    private LocalDateTime startedAt;
+
+    @Schema(description = "Temps d'exécution en ms")
+    private Long executionTime;
+
     public AbstractScan() {
     }
 
@@ -112,4 +129,14 @@ public abstract class AbstractScan {
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public LocalDateTime getCompletedAt() { return completedAt; }
     public void setCompletedAt(LocalDateTime completedAt) { this.completedAt = completedAt; }
+    public int getProgress() { return progress; }
+    public void setProgress(int progress) { this.progress = progress; }
+    public String getCurrentStep() { return currentStep; }
+    public void setCurrentStep(String currentStep) { this.currentStep = currentStep; }
+    public String getLogs() { return logs; }
+    public void setLogs(String logs) { this.logs = logs; }
+    public LocalDateTime getStartedAt() { return startedAt; }
+    public void setStartedAt(LocalDateTime startedAt) { this.startedAt = startedAt; }
+    public Long getExecutionTime() { return executionTime; }
+    public void setExecutionTime(Long executionTime) { this.executionTime = executionTime; }
 }

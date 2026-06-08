@@ -1,108 +1,191 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Smartphone, Play, Shield } from "lucide-react";
+import { Play, Smartphone, Shield, Loader2, CheckCircle2, XCircle, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+
+type ScanStatus = "PENDING" | "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED";
+
+interface ScanData {
+  id: number;
+  projectName: string;
+  fileName: string;
+  status: ScanStatus;
+  progress: number;
+  currentStep: string;
+  logs: string;
+  totalVulnerabilities: number;
+  criticalCount: number;
+  highCount: number;
+  createdAt: string;
+  completedAt?: string;
+  executionTime?: number;
+  scanType: string;
+}
+
+function StatusBadge({ status }: { status: ScanStatus }) {
+  const cfg: Record<ScanStatus, { label: string; className: string; icon: JSX.Element }> = {
+    PENDING:   { label: "En attente",  className: "bg-yellow-500/20 text-yellow-400 border-yellow-500/40", icon: <Clock className="h-3 w-3" /> },
+    RUNNING:   { label: "En cours",    className: "bg-blue-500/20 text-blue-400 border-blue-500/40",       icon: <Loader2 className="h-3 w-3 animate-spin" /> },
+    COMPLETED: { label: "Terminé",     className: "bg-green-500/20 text-green-400 border-green-500/40",    icon: <CheckCircle2 className="h-3 w-3" /> },
+    FAILED:    { label: "Échoué",      className: "bg-red-500/20 text-red-400 border-red-500/40",          icon: <XCircle className="h-3 w-3" /> },
+    CANCELLED: { label: "Annulé",      className: "bg-gray-500/20 text-gray-400 border-gray-500/40",       icon: <XCircle className="h-3 w-3" /> },
+  };
+  const c = cfg[status] ?? cfg.PENDING;
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs font-medium ${c.className}`}>
+      {c.icon}{c.label}
+    </span>
+  );
+}
 
 export default function ScanMobile() {
   const [project, setProject] = useState("");
   const [file, setFile] = useState<File | null>(null);
-  const [scanning, setScanning] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [realScans, setRealScans] = useState<any[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
-  const fetchScans = async () => {
+  // Active scan being tracked
+  const [activeScanId, setActiveScanId] = useState<number | null>(null);
+  const [activeScan, setActiveScan] = useState<ScanData | null>(null);
+
+  // History
+  const [recentScans, setRecentScans] = useState<ScanData[]>([]);
+
+  const pollingRef = useRef<NodeJS.Timeout | null>(null);
+
+  const getToken = () => localStorage.getItem("vulnscan-token");
+
+  // ── Fetch 5 recent mobile scans for history ────────────────────────────────────────
+  const fetchRecentScans = async () => {
     try {
-      const token = localStorage.getItem("vulnscan-token");
-      const res = await fetch("/api/v1/analyze", {
-        headers: { "Authorization": `Bearer ${token}` }
+      const res = await fetch("/api/v1/analyze?size=20&sort=createdAt,desc", {
+        headers: { Authorization: `Bearer ${getToken()}` },
       });
       if (res.ok) {
         const data = await res.json();
-        // Filtrer seulement les scans mobiles (facultatif si le backend retourne tout, mais gardons les scans mobiles)
-        const mobileScans = data.filter((s: any) => s.scanType === "SAST" && s.fileName && (s.fileName.endsWith(".apk") || s.fileName.endsWith(".ipa")));
-        mobileScans.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-        setRealScans(mobileScans);
+        const list: ScanData[] = Array.isArray(data) ? data : data.content || [];
+        // Keep only mobile scans (.apk / .ipa)
+        const mobileScans = list.filter(
+          (s) => s.fileName?.endsWith(".apk") || s.fileName?.endsWith(".ipa")
+        );
+        setRecentScans(mobileScans.slice(0, 5));
       }
     } catch (e) {
-      console.error("Erreur de récupération des scans", e);
+      console.error("Erreur récupération scans", e);
     }
   };
 
+  // ── Poll a single scan by ID ─────────────────────────────────────────────────
+  const pollScan = async (id: number) => {
+    try {
+      const res = await fetch(`/api/v1/analyze/${id}/progress`, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      if (res.ok) {
+        const scan: ScanData = await res.json();
+        setActiveScan(scan);
+
+        if (scan.status === "COMPLETED" || scan.status === "FAILED" || scan.status === "CANCELLED") {
+          stopPolling();
+          setActiveScanId(null);
+          localStorage.removeItem("activeScanId_mobile");
+          if (scan.status === "COMPLETED") {
+            toast.success(`Scan mobile terminé ! ${scan.totalVulnerabilities} vulnérabilité(s) détectée(s).`);
+          } else {
+            toast.error("Le scan mobile a échoué ou a été annulé.");
+          }
+          fetchRecentScans();
+        }
+      }
+    } catch (e) {
+      console.error("Erreur polling scan", e);
+    }
+  };
+
+  // ── Start / stop polling ────────────────────────────────────────────────────
+  const startPolling = (id: number) => {
+    stopPolling();
+    pollingRef.current = setInterval(() => pollScan(id), 3000);
+  };
+
+  const stopPolling = () => {
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current);
+      pollingRef.current = null;
+    }
+  };
+
+  // ── On mount: check if a scan was already in progress ───────────────────────
   useEffect(() => {
-    fetchScans();
+    fetchRecentScans();
+
+    const savedId = localStorage.getItem("activeScanId_mobile");
+    if (savedId) {
+      const id = parseInt(savedId, 10);
+      setActiveScanId(id);
+      pollScan(id);
+      startPolling(id);
+    }
+
+    return () => stopPolling();
   }, []);
 
-  const startScan = async () => {
+  // ── Launch scan ──────────────────────────────────────────────────────────────
+  const startScan = () => {
     if (!file) {
-      toast.error("Veuillez sélectionner un fichier APK/IPA pour l'analyse");
+      toast.error("Veuillez sélectionner un fichier APK ou IPA pour l'analyse");
       return;
     }
-    if (!project) {
+    if (!project.trim()) {
       toast.error("Veuillez entrer un nom d'application");
       return;
     }
-    
-    setScanning(true);
-    setProgress(0);
-    toast.info("Upload de l'archive en cours...");
-    
+
+    setUploading(true);
+    setUploadProgress(0);
+
     const formData = new FormData();
     formData.append("projectName", project);
-    formData.append("file", file);
-    
-    const token = localStorage.getItem("vulnscan-token");
+    formData.append("file", file, file.name);
 
     const xhr = new XMLHttpRequest();
-    let interval: NodeJS.Timeout;
 
-    // Progression 0-50% = Temps d'upload vers le Backend
-    xhr.upload.onprogress = (event) => {
-      if (event.lengthComputable) {
-        const percent = Math.round((event.loaded / event.total) * 50);
-        setProgress(percent);
-      }
-    };
-
-    xhr.upload.onloadend = () => {
-      toast.info("Upload terminé. MobSF analyse le code...");
-      // Progression 50-95% = Temps d'analyse MobSF
-      interval = setInterval(() => {
-        setProgress((prev) => {
-          if (prev >= 50 && prev < 95) return prev + 1;
-          return prev;
-        });
-      }, 800);
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) setUploadProgress(Math.round((e.loaded / e.total) * 100));
     };
 
     xhr.onload = () => {
-      clearInterval(interval);
-      setScanning(false);
-      setProgress(100);
-      
+      setUploading(false);
+      setUploadProgress(0);
       if (xhr.status >= 200 && xhr.status < 300) {
-        const data = JSON.parse(xhr.responseText);
-        toast.success(`Scan Mobile terminé ! ${data.totalVulnerabilities} alertes relevées.`);
-        fetchScans();
+        const data: ScanData = JSON.parse(xhr.responseText);
+        toast.success(`Scan mobile lancé en arrière-plan (ID: ${data.id}). Vous pouvez naviguer librement.`);
+        localStorage.setItem("activeScanId_mobile", String(data.id));
+        setActiveScanId(data.id);
+        setActiveScan(data);
+        startPolling(data.id);
+      } else if (xhr.status === 403) {
+        toast.error("Accès refusé – Rôle Administrateur ou Analyste requis");
       } else {
-        toast.error(xhr.status === 403 ? "Accès refusé - Rôle Administrateur ou Analyste requis" : "Erreur lors de l'analyse MobSF");
+        toast.error("Erreur lors du lancement du scan mobile");
       }
     };
 
     xhr.onerror = () => {
-      clearInterval(interval);
-      setScanning(false);
-      toast.error("Connexion au serveur échouée.");
+      setUploading(false);
+      toast.error("Connexion au serveur échouée");
     };
 
     xhr.open("POST", "/api/v1/analyze/mobile", true);
-    if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
-    
+    xhr.setRequestHeader("Authorization", `Bearer ${getToken()}`);
     xhr.send(formData);
   };
+
+  const isScanning = uploading || (activeScan && (activeScan.status === "RUNNING" || activeScan.status === "PENDING"));
 
   return (
     <div className="space-y-6">
@@ -113,68 +196,103 @@ export default function ScanMobile() {
         <p className="text-muted-foreground mt-1">Analyser le code source d'une application mobile (APK/IPA)</p>
       </div>
 
+      {/* ── Configuration ── */}
       <Card className="border-border/50">
         <CardHeader><CardTitle className="text-base">Configurer le scan</CardTitle></CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Nom de l'application</label>
-            <Input 
-              placeholder="Ex: Mon Application Android" 
-              value={project} 
-              onChange={(e) => setProject(e.target.value)} 
-              disabled={scanning}
-            />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Nom de l'application</label>
+              <Input
+                placeholder="Ex: Mon Application Android"
+                value={project}
+                onChange={(e) => setProject(e.target.value)}
+                disabled={!!isScanning}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Fichier (.apk, .ipa)</label>
+              <Input
+                type="file"
+                accept=".apk,.ipa"
+                onChange={(e) => setFile(e.target.files?.[0] || null)}
+                disabled={!!isScanning}
+              />
+            </div>
           </div>
 
-          <div className="space-y-2 pt-2">
-            <label className="text-sm font-medium">Application (.apk, .ipa)</label>
-            <Input 
-              type="file" 
-              accept=".apk,.ipa" 
-              onChange={(e) => setFile(e.target.files?.[0] || null)} 
-              disabled={scanning}
-            />
-            <p className="text-xs text-muted-foreground">Fournissez le fichier mobile à analyser statiquement par MobSF.</p>
-          </div>
-
-          {scanning && (
+          {/* Upload progress */}
+          {uploading && (
             <div className="space-y-2 pt-2">
               <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">
-                  {progress < 50 ? "Upload vers le serveur en cours..." : "MobSF analyse votre application..."}
-                </span>
-                <span className="font-mono">{Math.min(100, Math.round(progress))}%</span>
+                <span className="text-muted-foreground">Téléversement de l'APK/IPA...</span>
+                <span className="font-mono">{uploadProgress}%</span>
               </div>
-              <Progress value={Math.min(100, progress)} className="h-2 transition-all duration-300" />
+              <Progress value={uploadProgress} className="h-2" />
             </div>
           )}
 
-          <Button onClick={startScan} disabled={!project || scanning || !file}>
-            <Play className="h-4 w-4 mr-2" />Lancer le scan
+          <Button onClick={startScan} disabled={!project || !!isScanning || !file}>
+            {isScanning ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Play className="h-4 w-4 mr-2" />}
+            {isScanning ? "Scan en cours..." : "Lancer le scan"}
           </Button>
         </CardContent>
       </Card>
 
+      {/* ── Active scan tracker (persists across navigation) ── */}
+      {activeScan && (activeScan.status === "RUNNING" || activeScan.status === "PENDING") && (
+        <Card className="border-blue-500/40 bg-blue-500/5">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin text-blue-400" />
+              Scan en cours — {activeScan.projectName}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">{activeScan.currentStep || "Initialisation..."}</span>
+              <span className="font-mono font-bold text-blue-400">{activeScan.progress}%</span>
+            </div>
+            <Progress value={activeScan.progress} className="h-3" />
+            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+              <span>ID: #{activeScan.id}</span>
+              <StatusBadge status={activeScan.status} />
+              <span className="text-blue-400">● Mise à jour toutes les 3s</span>
+            </div>
+            {activeScan.logs && (
+              <pre className="text-xs bg-muted/40 rounded p-2 max-h-48 overflow-y-auto whitespace-pre-wrap text-muted-foreground font-mono">
+                {activeScan.logs}
+              </pre>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── Historique ── */}
       <Card className="border-border/50">
-        <CardHeader><CardTitle className="text-base">Historique Récents (Vue Base de données)</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle className="text-base">Historique récent</CardTitle>
+        </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            {realScans.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">Aucun scan récent, lancez une analyse pour commencer.</p>
-            ) : realScans.map((s) => (
+            {recentScans.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">Aucun scan récent.</p>
+            ) : recentScans.map((s) => (
               <div key={s.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
                 <div className="flex items-center gap-3">
-                  <Shield className="h-4 w-4 text-primary" />
+                  <Shield className="h-4 w-4 text-primary shrink-0" />
                   <div>
                     <p className="text-sm font-medium">{s.projectName}</p>
                     <p className="text-xs text-muted-foreground">
-                      {new Date(s.createdAt).toLocaleString()} · Statut: <span className={s.status === 'FAILED' ? 'text-destructive' : 'text-primary'}>{s.status}</span>
+                      {new Date(s.createdAt).toLocaleString()}
+                      {s.executionTime && <span> · {(s.executionTime / 1000).toFixed(1)}s</span>}
                     </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <Badge variant="outline" className="font-mono text-xs">MOBILE</Badge>
-                  <span className={`text-sm font-mono ${s.totalVulnerabilities > 0 ? 'text-destructive font-bold' : 'text-green-500'}`}>
+                  <StatusBadge status={s.status} />
+                  <Badge variant="outline" className="font-mono text-xs">{s.scanType}</Badge>
+                  <span className={`text-sm font-mono ${s.totalVulnerabilities > 0 ? "text-destructive font-bold" : "text-green-500"}`}>
                     {s.totalVulnerabilities} vulns
                   </span>
                 </div>
