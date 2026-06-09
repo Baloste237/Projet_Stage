@@ -1,0 +1,63 @@
+---
+# =============================================================
+# Playbook : Rollback vers une version précédente
+# Usage : ansible-playbook -i inventory/production.ini playbooks/rollback.yml
+#         --extra-vars "rollback_tag=abc1234"
+# =============================================================
+
+- name: Rollback AiSecureScan vers une version précédente
+  hosts: production
+  become: true
+
+  vars:
+    deploy_path: /opt/aisecurescan
+    compose_file: docker-compose.prod.yml
+    rollback_tag: ""              # Tag de commit à restaurer (OBLIGATOIRE)
+    gitlab_registry: registry.gitlab.com
+
+  pre_tasks:
+    - name: Vérifier que rollback_tag est défini
+      fail:
+        msg: "❌ Vous devez spécifier --extra-vars 'rollback_tag=<commit_sha>'"
+      when: rollback_tag == ""
+
+  tasks:
+
+    - name: "Afficher la version cible du rollback"
+      debug:
+        msg: "⏪ Rollback vers le tag : {{ rollback_tag }}"
+
+    - name: Pull des images de la version cible
+      shell: |
+        docker pull {{ gitlab_registry }}/{{ gitlab_namespace }}/backend:{{ rollback_tag }}
+        docker pull {{ gitlab_registry }}/{{ gitlab_namespace }}/frontend:{{ rollback_tag }}
+
+    - name: Taguer les images en :latest local
+      shell: |
+        docker tag {{ gitlab_registry }}/{{ gitlab_namespace }}/backend:{{ rollback_tag }} \
+                   {{ gitlab_registry }}/{{ gitlab_namespace }}/backend:latest
+        docker tag {{ gitlab_registry }}/{{ gitlab_namespace }}/frontend:{{ rollback_tag }} \
+                   {{ gitlab_registry }}/{{ gitlab_namespace }}/frontend:latest
+
+    - name: Redémarrer les services avec les images rollback
+      shell: |
+        cd {{ deploy_path }}
+        docker compose -f {{ compose_file }} --env-file .env.prod up -d \
+          --no-deps backend frontend
+
+    - name: Attendre le redémarrage
+      pause:
+        seconds: 25
+
+    - name: Vérifier la santé après rollback
+      uri:
+        url: "http://localhost:8081/actuator/health"
+        status_code: 200
+        timeout: 30
+      register: health_after_rollback
+      retries: 5
+      delay: 10
+
+    - name: Confirmer le rollback réussi
+      debug:
+        msg: "✅ Rollback vers {{ rollback_tag }} réussi — Backend: {{ health_after_rollback.json.status }}"

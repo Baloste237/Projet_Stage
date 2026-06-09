@@ -75,6 +75,10 @@ public class ReportServiceImpl implements ReportService {
             vMap.put("cweId", v.getCweId());
             vMap.put("cvssScore", v.getCvssScore());
             vMap.put("owaspCategory", v.getOwaspcat());
+            vMap.put("legacyCategory", v.getLegacyCategory());
+            vMap.put("owaspVersion", v.getOwaspVersion());
+            vMap.put("owaspId", v.getOwaspId());
+            vMap.put("owaspName", v.getOwaspName());
             vMap.put("targetFile", v.getTargetFile());
             vMap.put("targetLine", v.getTargetLine());
             return vMap;
@@ -143,14 +147,17 @@ public class ReportServiceImpl implements ReportService {
         if (vulnerabilites.isEmpty()) {
             document.add(new Paragraph("Félicitations, aucune vulnérabilité détectée.", normalFont));
         } else {
-            PdfPTable table = new PdfPTable(6); // Added columns for Target and CVSS
+            PdfPTable table = new PdfPTable(6); 
             table.setWidthPercentage(100);
-            table.setWidths(new float[]{1.5f, 1.2f, 1f, 3.5f, 1f, 2f});
+            table.setWidths(new float[]{2f, 1.2f, 1f, 3.5f, 1f, 2f});
 
-            addTableHeader(table, "Type", "Sévérité", "CVSS", "Description", "CWE", "Fichier/Ligne");
+            addTableHeader(table, "Catégorie", "Sévérité", "CVSS", "Description", "CWE", "Fichier/Ligne");
 
             for (Vulnerabilite v : vulnerabilites) {
-                table.addCell(getNormalCell(v.getType()));
+                String catStr = v.getOwaspVersion() != null 
+                    ? "OWASP " + v.getOwaspVersion() + ":\n" + v.getOwaspId() + " - " + v.getOwaspName() + "\n(Détection: " + v.getLegacyCategory() + ")" 
+                    : (v.getOwaspcat() != null ? v.getOwaspcat() : v.getType());
+                table.addCell(getNormalCell(catStr));
                 table.addCell(getSeverityCell(v.getNiv_grav() != null ? v.getNiv_grav().name() : "N/A"));
                 table.addCell(getNormalCell(v.getCvssScore() != null ? v.getCvssScore().toString() : "N/A"));
                 table.addCell(getNormalCell(v.getDescription()));

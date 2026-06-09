@@ -1,0 +1,135 @@
+---
+# =============================================================
+# Playbook : Déploiement complet d'AiSecureScan en production
+# Usage : ansible-playbook -i inventory/production.ini playbooks/deploy-app.yml
+# =============================================================
+
+- name: Déployer AiSecureScan en production
+  hosts: production
+  become: true
+
+  vars:
+    deploy_path: /opt/aisecurescan
+    compose_file: docker-compose.prod.yml
+    monitoring_compose: docker-compose.monitoring.yml
+
+  tasks:
+
+    # ── 1. Préparer le répertoire ─────────────────────────────
+    - name: Créer le répertoire de déploiement
+      file:
+        path: "{{ deploy_path }}"
+        state: directory
+        owner: deployer
+        group: deployer
+        mode: '0750'
+
+    - name: Créer le sous-répertoire monitoring
+      file:
+        path: "{{ deploy_path }}/monitoring"
+        state: directory
+        owner: deployer
+        mode: '0750'
+
+    # ── 2. Copier les fichiers de configuration ───────────────
+    - name: Copier docker-compose.prod.yml
+      copy:
+        src: "../{{ compose_file }}"
+        dest: "{{ deploy_path }}/{{ compose_file }}"
+        owner: deployer
+        mode: '0640'
+
+    - name: Copier docker-compose.monitoring.yml
+      copy:
+        src: "../{{ monitoring_compose }}"
+        dest: "{{ deploy_path }}/{{ monitoring_compose }}"
+        owner: deployer
+        mode: '0640'
+
+    - name: Copier le fichier .env.prod (⚠️ ne pas committer)
+      copy:
+        src: "../.env.prod"
+        dest: "{{ deploy_path }}/.env.prod"
+        owner: deployer
+        mode: '0600'
+      no_log: true
+
+    - name: Copier la configuration Nginx
+      copy:
+        src: "../nginx/"
+        dest: "{{ deploy_path }}/nginx/"
+        owner: deployer
+        mode: '0644'
+
+    - name: Copier le dossier monitoring
+      copy:
+        src: "../monitoring/"
+        dest: "{{ deploy_path }}/monitoring/"
+        owner: deployer
+        mode: '0644'
+
+    - name: Copier le script SQL d'initialisation
+      copy:
+        src: "../database/init.sql"
+        dest: "{{ deploy_path }}/database/init.sql"
+        owner: deployer
+        mode: '0644'
+
+    # ── 3. Connexion au registry GitLab ──────────────────────
+    - name: Se connecter au registry GitLab
+      shell: >
+        docker login -u "{{ gitlab_user }}" -p "{{ gitlab_token }}" "{{ gitlab_registry }}"
+      no_log: true
+
+    # ── 4. Pull des images Docker ────────────────────────────
+    - name: Pull des nouvelles images Docker
+      shell: |
+        cd {{ deploy_path }}
+        docker compose -f {{ compose_file }} --env-file .env.prod pull
+      register: pull_result
+
+    - name: Afficher le résultat du pull
+      debug:
+        msg: "{{ pull_result.stdout_lines }}"
+
+    # ── 5. Démarrer les services ─────────────────────────────
+    - name: Démarrer les services applicatifs
+      shell: |
+        cd {{ deploy_path }}
+        docker compose -f {{ compose_file }} --env-file .env.prod up -d --remove-orphans
+      register: up_result
+
+    # ── 6. Démarrer le monitoring ─────────────────────────────
+    - name: Démarrer la stack monitoring
+      shell: |
+        cd {{ deploy_path }}
+        docker compose -f {{ monitoring_compose }} --env-file .env.prod up -d --remove-orphans
+
+    # ── 7. Vérifier la santé ──────────────────────────────────
+    - name: Attendre que les services soient prêts (30s)
+      pause:
+        seconds: 30
+
+    - name: Vérifier le statut des conteneurs
+      shell: |
+        cd {{ deploy_path }}
+        docker compose -f {{ compose_file }} ps
+      register: compose_status
+
+    - name: Afficher le statut
+      debug:
+        msg: "{{ compose_status.stdout_lines }}"
+
+    - name: Vérifier la santé du backend
+      uri:
+        url: "http://localhost:8081/actuator/health"
+        status_code: 200
+        timeout: 30
+      register: health_check
+      retries: 5
+      delay: 10
+      ignore_errors: true
+
+    - name: Résultat du health check
+      debug:
+        msg: "Backend status: {{ health_check.json.status | default('UNREACHABLE') }}"

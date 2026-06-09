@@ -1,0 +1,8 @@
+# ── Valeurs des variables Terraform (NE PAS COMMITTER) ─────────
+# Copier ce fichier : cp terraform.tfvars.example terraform.tfvars
+
+hcloud_token   = "VOTRE_TOKEN_API_HETZNER"
+ssh_public_key = "ssh-ed25519 AAAA... deployer@aisecurescan"
+server_type    = "cx21"
+server_location = "fsn1"
+environment    = "production"

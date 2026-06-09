@@ -6,7 +6,8 @@ import { StatsSkeletonLoader } from "@/components/StatsSkeletonLoader";
 import { StatCard } from "@/components/StatCard";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, LineChart, Line, Legend
+  PieChart, Pie, Cell, LineChart, Line, Legend,
+  Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis
 } from "recharts";
 
 // Colors corresponding to severity levels
@@ -257,29 +258,51 @@ export default function Statistics() {
           </Card>
         </div>
 
-        {/* Bar Chart OWASP Categories - Mobile */}
-        <Card className="border-border/50">
-          <CardHeader className="pb-2"><CardTitle className="text-base">Vulnérabilités par Catégorie OWASP Mobile</CardTitle></CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={400}>
-              {mobileStats?.owaspCategories && mobileStats.owaspCategories.length > 0 ? (
-                <BarChart data={mobileStats.owaspCategories} layout="vertical" margin={{ left: 100 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 15%, 20%)" horizontal={false} />
-                  <XAxis type="number" stroke="hsl(215, 15%, 55%)" />
-                  <YAxis type="category" dataKey="categoryName" stroke="hsl(215, 15%, 55%)" fontSize={11} width={180} />
-                  <Tooltip contentStyle={{ backgroundColor: "hsl(220, 20%, 12%)", borderColor: "hsl(220, 15%, 20%)" }} />
-                  <Legend />
-                  <Bar dataKey="criticalCount" name="Critique" stackId="a" fill={COLORS.CRITICAL} />
-                  <Bar dataKey="highCount" name="Élevé" stackId="a" fill={COLORS.HIGH} />
-                  <Bar dataKey="mediumCount" name="Moyen" stackId="a" fill={COLORS.MEDIUM} />
-                  <Bar dataKey="lowCount" name="Faible" stackId="a" fill={COLORS.LOW} />
-                </BarChart>
-              ) : (
-                <div className="h-full flex items-center justify-center text-muted-foreground">Aucune donnée disponible</div>
-              )}
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
+        {/* Graphiques OWASP Categories - Mobile */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <Card className="border-border/50">
+            <CardHeader className="pb-2"><CardTitle className="text-base">Vulnérabilités par Catégorie OWASP Mobile (Barres)</CardTitle></CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={400}>
+                {mobileStats?.owaspCategories && mobileStats.owaspCategories.length > 0 ? (
+                  <BarChart data={mobileStats.owaspCategories} layout="vertical" margin={{ left: 100 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 15%, 20%)" horizontal={false} />
+                    <XAxis type="number" stroke="hsl(215, 15%, 55%)" />
+                    <YAxis type="category" dataKey="categoryName" stroke="hsl(215, 15%, 55%)" fontSize={11} width={180} />
+                    <Tooltip contentStyle={{ backgroundColor: "hsl(220, 20%, 12%)", borderColor: "hsl(220, 15%, 20%)" }} />
+                    <Legend />
+                    <Bar dataKey="criticalCount" name="Critique" stackId="a" fill={COLORS.CRITICAL} />
+                    <Bar dataKey="highCount" name="Élevé" stackId="a" fill={COLORS.HIGH} />
+                    <Bar dataKey="mediumCount" name="Moyen" stackId="a" fill={COLORS.MEDIUM} />
+                    <Bar dataKey="lowCount" name="Faible" stackId="a" fill={COLORS.LOW} />
+                  </BarChart>
+                ) : (
+                  <div className="h-full flex items-center justify-center text-muted-foreground">Aucune donnée disponible</div>
+                )}
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border/50">
+            <CardHeader className="pb-2"><CardTitle className="text-base">Profil de Sécurité OWASP (Radar)</CardTitle></CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={400}>
+                {mobileStats?.owaspCategories && mobileStats.owaspCategories.length > 0 ? (
+                  <RadarChart cx="50%" cy="50%" outerRadius="80%" data={mobileStats.owaspCategories}>
+                    <PolarGrid stroke="hsl(215, 15%, 30%)" />
+                    <PolarAngleAxis dataKey="categoryId" stroke="hsl(215, 15%, 55%)" fontSize={12} />
+                    <PolarRadiusAxis angle={30} domain={[0, 'auto']} stroke="hsl(215, 15%, 55%)" />
+                    <Radar name="Total Vulnérabilités" dataKey="count" stroke={COLORS.HIGH} fill={COLORS.HIGH} fillOpacity={0.4} />
+                    <Tooltip contentStyle={{ backgroundColor: "hsl(220, 20%, 12%)", borderColor: "hsl(220, 15%, 20%)", color: "#fff" }} />
+                    <Legend />
+                  </RadarChart>
+                ) : (
+                  <div className="h-full flex items-center justify-center text-muted-foreground">Aucune donnée disponible</div>
+                )}
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        </div>
       </section>
     </div>
   );

@@ -1,0 +1,100 @@
+groups:
+  # ── Alertes Backend Spring Boot ──────────────────────────────
+  - name: backend_alerts
+    rules:
+
+      - alert: BackendDown
+        expr: up{job="aisecurescan-backend"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "🚨 Backend AiSecureScan est DOWN"
+          description: "Le backend Spring Boot ne répond plus depuis 2 minutes."
+
+      - alert: BackendHighResponseTime
+        expr: http_server_requests_seconds_sum{job="aisecurescan-backend"} /
+              http_server_requests_seconds_count{job="aisecurescan-backend"} > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "⚠️ Latence élevée du backend"
+          description: "Le temps de réponse moyen dépasse 2 secondes depuis 5 minutes."
+
+      - alert: BackendHighErrorRate
+        expr: rate(http_server_requests_seconds_count{job="aisecurescan-backend", status=~"5.."}[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "🚨 Taux d'erreurs 5xx élevé"
+          description: "Plus de 10% des requêtes retournent des erreurs 5xx."
+
+  # ── Alertes Système ───────────────────────────────────────────
+  - name: system_alerts
+    rules:
+
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "⚠️ CPU élevé sur {{ $labels.instance }}"
+          description: "CPU à {{ $value | humanize }}% depuis 5 minutes."
+
+      - alert: HighMemoryUsage
+        expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) /
+              node_memory_MemTotal_bytes * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "⚠️ Mémoire élevée"
+          description: "RAM utilisée à {{ $value | humanize }}%."
+
+      - alert: DiskSpaceLow
+        expr: (node_filesystem_avail_bytes{mountpoint="/"} /
+              node_filesystem_size_bytes{mountpoint="/"}) * 100 < 15
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "🚨 Espace disque critique"
+          description: "Moins de 15% d'espace disque disponible."
+
+  # ── Alertes Base de données ───────────────────────────────────
+  - name: database_alerts
+    rules:
+
+      - alert: PostgreSQLDown
+        expr: up{job="postgresql"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "🚨 PostgreSQL est DOWN"
+          description: "La base de données ne répond plus."
+
+      - alert: PostgreSQLTooManyConnections
+        expr: pg_stat_activity_count > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "⚠️ Trop de connexions PostgreSQL"
+          description: "{{ $value }} connexions actives (seuil: 80)."
+
+  # ── Alertes SAST Engine ───────────────────────────────────────
+  - name: sast_alerts
+    rules:
+
+      - alert: SASTEngineDown
+        expr: up{job="aisecurescan-sast"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "🚨 Moteur SAST est DOWN"
+          description: "Le service FastAPI d'analyse SAST ne répond plus."

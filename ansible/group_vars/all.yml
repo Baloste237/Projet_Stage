@@ -1,0 +1,26 @@
+---
+# ============================================================
+# group_vars/all.yml — Variables partagées entre tous les hôtes
+# ============================================================
+
+# Répertoire de déploiement sur le serveur
+deploy_path: /opt/aisecurescan
+
+# Fichiers Docker Compose
+compose_file: docker-compose.prod.yml
+env_file: .env.prod
+
+# Registry GitLab
+gitlab_registry: registry.gitlab.com
+gitlab_namespace: "{{ lookup('env', 'CI_REGISTRY_IMAGE') | default('your-namespace/projet_stage') }}"
+
+# Monitoring
+grafana_port: 3000
+prometheus_port: 9090
+
+# Nginx
+nginx_http_port: 80
+nginx_https_port: 443
+
+# Versions des outils
+docker_compose_version: "2.24.0"

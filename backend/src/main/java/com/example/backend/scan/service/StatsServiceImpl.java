@@ -259,15 +259,13 @@ public class StatsServiceImpl implements StatsService {
 
         for (Map.Entry<String, String[]> entry : OWASP_MOBILE_KEYWORDS.entrySet()) {
             String   catName  = entry.getKey();
-            String[] keywords = entry.getValue();
-            String   catId    = catName.substring(0, 2);  // "M1"…"M10" - on prend les 2-3 premiers chars
-
-            // gère M10 correctement
+            String   catId    = catName.substring(0, 2);  // "M1"…"M10"
             int dashIdx = catName.indexOf(' ');
             catId = dashIdx > 0 ? catName.substring(0, dashIdx).trim() : catId;
+            final String finalCatId = catId;
 
             List<Vulnerabilite> matched = vulns.stream()
-                .filter(v -> matchesKeywords(v, keywords))
+                .filter(v -> finalCatId.equals(v.getOwaspId()))
                 .collect(Collectors.toList());
 
             long count    = matched.size();

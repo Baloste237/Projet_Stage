@@ -36,6 +36,22 @@ public class Vulnerabilite {
     @Schema(description = "Catégorie OWASP", example = "A03:2021 - Injection")
     private String owaspcat;
     
+    @Column(name = "legacy_category", length = 1000)
+    @Schema(description = "Ancienne catégorie (ex: MobSF 2016)", example = "M4 Insecure Authentication")
+    private String legacyCategory;
+
+    @Column(name = "owasp_version", length = 50)
+    @Schema(description = "Version OWASP utilisée", example = "2024")
+    private String owaspVersion;
+
+    @Column(name = "owasp_id", length = 50)
+    @Schema(description = "Identifiant OWASP", example = "M3")
+    private String owaspId;
+
+    @Column(name = "owasp_name", length = 1000)
+    @Schema(description = "Nom complet de la catégorie OWASP", example = "Insecure Authentication and Authorization")
+    private String owaspName;
+    
     // Champs optionnels de localisation dans le projet
     @Column(name = "target_file", length = 1000)
     @Schema(description = "Fichier source contenant la vulnérabilité", example = "src/main/java/com/example/UserController.java")
@@ -100,6 +116,19 @@ public class Vulnerabilite {
     public void setCvssScore(Double cvssScore) { this.cvssScore = cvssScore; }
     public String getOwaspcat() { return owaspcat; }
     public void setOwaspcat(String owaspcat) { this.owaspcat = owaspcat; }
+    
+    public String getLegacyCategory() { return legacyCategory; }
+    public void setLegacyCategory(String legacyCategory) { this.legacyCategory = legacyCategory; }
+    
+    public String getOwaspVersion() { return owaspVersion; }
+    public void setOwaspVersion(String owaspVersion) { this.owaspVersion = owaspVersion; }
+    
+    public String getOwaspId() { return owaspId; }
+    public void setOwaspId(String owaspId) { this.owaspId = owaspId; }
+    
+    public String getOwaspName() { return owaspName; }
+    public void setOwaspName(String owaspName) { this.owaspName = owaspName; }
+
     public AbstractScan getScan() { return scan; }
     public void setScan(AbstractScan scan) { this.scan = scan; }
     public String getTargetFile() { return targetFile; }

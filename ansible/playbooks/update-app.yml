@@ -1,0 +1,45 @@
+---
+# =============================================================
+# Playbook : Mise à jour sans downtime (rolling update)
+# Usage : ansible-playbook -i inventory/production.ini playbooks/update-app.yml
+#         --extra-vars "service=backend new_tag=abc1234"
+# =============================================================
+
+- name: Mise à jour d'un service AiSecureScan
+  hosts: production
+  become: true
+
+  vars:
+    deploy_path: /opt/aisecurescan
+    compose_file: docker-compose.prod.yml
+    service: backend              # Service à mettre à jour (paramètre)
+    new_tag: latest               # Tag de l'image (paramètre)
+
+  tasks:
+
+    - name: "Pull de la nouvelle image pour {{ service }}"
+      shell: |
+        cd {{ deploy_path }}
+        docker compose -f {{ compose_file }} --env-file .env.prod pull {{ service }}
+
+    - name: "Redémarrage de {{ service }} avec la nouvelle image"
+      shell: |
+        cd {{ deploy_path }}
+        docker compose -f {{ compose_file }} --env-file .env.prod up -d --no-deps {{ service }}
+
+    - name: Attendre que le service redémarre
+      pause:
+        seconds: 20
+
+    - name: Vérifier que le service est healthy
+      shell: |
+        docker inspect --format='{{"{{"}}json .State.Health.Status{{"}}"}}' \
+          $(docker compose -f {{ deploy_path }}/{{ compose_file }} ps -q {{ service }})
+      register: health_status
+
+    - name: Afficher le statut de santé
+      debug:
+        msg: "{{ service }} health: {{ health_status.stdout }}"
+
+    - name: Nettoyer les anciennes images inutilisées
+      shell: docker image prune -f

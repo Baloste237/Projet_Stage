@@ -1,0 +1,72 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+# ── Destination : Loki ─────────────────────────────────────────
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+# ── Sources de logs ────────────────────────────────────────────
+scrape_configs:
+
+  # ── Logs des conteneurs Docker ─────────────────────────────
+  - job_name: docker-containers
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+        filters:
+          - name: status
+            values: ["running"]
+    relabel_configs:
+      # Nom du conteneur comme label
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(.*)'
+        target_label: container
+      # Image Docker
+      - source_labels: ['__meta_docker_container_image']
+        target_label: image
+      # Log stream (stdout/stderr)
+      - source_labels: ['__meta_docker_container_log_stream']
+        target_label: logstream
+      # Ne garder que les conteneurs AiSecureScan
+      - source_labels: ['container']
+        regex: 'vuln_scanner.*|mobsf.*|prometheus|grafana|loki'
+        action: keep
+
+    pipeline_stages:
+      # Parser les logs JSON Spring Boot
+      - match:
+          selector: '{container=~"vuln_scanner_backend.*"}'
+          stages:
+            - json:
+                expressions:
+                  level: level
+                  message: message
+                  timestamp: "@timestamp"
+            - labels:
+                level:
+            - timestamp:
+                source: timestamp
+                format: RFC3339Nano
+
+      # Parser les logs FastAPI/Uvicorn
+      - match:
+          selector: '{container=~"vuln_scanner_sast.*"}'
+          stages:
+            - regex:
+                expression: '(?P<level>INFO|WARNING|ERROR|CRITICAL)\s+.*'
+            - labels:
+                level:
+
+      # Parser les logs Nginx
+      - match:
+          selector: '{container=~"vuln_scanner_nginx.*"}'
+          stages:
+            - regex:
+                expression: '(?P<method>GET|POST|PUT|DELETE|PATCH)\s+(?P<path>\S+)\s+HTTP/\S+"\s+(?P<status>\d{3})'
+            - labels:
+                method:
+                status:

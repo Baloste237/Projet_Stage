@@ -42,19 +42,22 @@ public class AppScanServiceImpl implements AppScanService {
     private final HistoriqueService historiqueService;
     private final MobSFClient mobsfClient;
     private final AsyncExecutorService asyncExecutorService;
+    private final OwaspMobileMappingService owaspMappingService;
 
     public AppScanServiceImpl(AbstractScanRepository abstractScanRepository, 
                               List<ScanProcessor> processors,
                               VulnerabiliteService vulnerabiliteService,
                               HistoriqueService historiqueService,
                               MobSFClient mobsfClient,
-                              AsyncExecutorService asyncExecutorService) {
+                              AsyncExecutorService asyncExecutorService,
+                              OwaspMobileMappingService owaspMappingService) {
         this.abstractScanRepository = abstractScanRepository;
         this.processors = processors;
         this.vulnerabiliteService = vulnerabiliteService;
         this.historiqueService = historiqueService;
         this.mobsfClient = mobsfClient;
         this.asyncExecutorService = asyncExecutorService;
+        this.owaspMappingService = owaspMappingService;
     }
 
     @Value("${app.upload.dir:uploads}")
@@ -518,7 +521,12 @@ public class AppScanServiceImpl implements AppScanService {
                                             fullDesc = fullDesc.substring(0, 250) + "...";
                                         }
 
-                                        Vulnerabilite v = new Vulnerabilite(null, cwe, fullDesc, sevEnum, cwe, cvss, key, mobileScan);
+                                        com.example.backend.scan.dto.OwaspMappingResult mapRes = owaspMappingService.mapCategory(key, cwe, fullDesc);
+                                        Vulnerabilite v = new Vulnerabilite(null, cwe, fullDesc, sevEnum, cwe, cvss, mapRes.getOwaspId() + " - " + mapRes.getOwaspName(), mobileScan);
+                                        v.setLegacyCategory(mapRes.getLegacyCategory());
+                                        v.setOwaspVersion(mapRes.getOwaspVersion());
+                                        v.setOwaspId(mapRes.getOwaspId());
+                                        v.setOwaspName(mapRes.getOwaspName());
                                         vulnerabiliteService.saveVulnerabilite(v);
                                         
                                         totalVulnerabilities++;
@@ -562,7 +570,12 @@ public class AppScanServiceImpl implements AppScanService {
                                                 fullDesc = fullDesc.substring(0, 250) + "...";
                                             }
 
-                                            Vulnerabilite v = new Vulnerabilite(null, cwe, fullDesc, sevEnum, cwe, cvss, title, mobileScan);
+                                            com.example.backend.scan.dto.OwaspMappingResult mapRes = owaspMappingService.mapCategory(title, cwe, fullDesc);
+                                            Vulnerabilite v = new Vulnerabilite(null, cwe, fullDesc, sevEnum, cwe, cvss, mapRes.getOwaspId() + " - " + mapRes.getOwaspName(), mobileScan);
+                                            v.setLegacyCategory(mapRes.getLegacyCategory());
+                                            v.setOwaspVersion(mapRes.getOwaspVersion());
+                                            v.setOwaspId(mapRes.getOwaspId());
+                                            v.setOwaspName(mapRes.getOwaspName());
                                             vulnerabiliteService.saveVulnerabilite(v);
                                             totalVulnerabilities++;
                                             switch(sevEnum) {
@@ -600,7 +613,12 @@ public class AppScanServiceImpl implements AppScanService {
                                                         fullDesc = fullDesc.substring(0, 250) + "...";
                                                     }
 
-                                                    Vulnerabilite v = new Vulnerabilite(null, cwe, fullDesc, sevEnum, cwe, cvss, title, mobileScan);
+                                                    com.example.backend.scan.dto.OwaspMappingResult mapRes = owaspMappingService.mapCategory(title, cwe, fullDesc);
+                                                    Vulnerabilite v = new Vulnerabilite(null, cwe, fullDesc, sevEnum, cwe, cvss, mapRes.getOwaspId() + " - " + mapRes.getOwaspName(), mobileScan);
+                                                    v.setLegacyCategory(mapRes.getLegacyCategory());
+                                                    v.setOwaspVersion(mapRes.getOwaspVersion());
+                                                    v.setOwaspId(mapRes.getOwaspId());
+                                                    v.setOwaspName(mapRes.getOwaspName());
                                                     vulnerabiliteService.saveVulnerabilite(v);
                                                     totalVulnerabilities++;
                                                     switch(sevEnum) {
@@ -631,7 +649,12 @@ public class AppScanServiceImpl implements AppScanService {
                                                     fullDesc = fullDesc.substring(0, 250) + "...";
                                                 }
 
-                                                Vulnerabilite v = new Vulnerabilite(null, cwe, fullDesc, sevEnum, cwe, cvss, title, mobileScan);
+                                                com.example.backend.scan.dto.OwaspMappingResult mapRes = owaspMappingService.mapCategory(title, cwe, fullDesc);
+                                                Vulnerabilite v = new Vulnerabilite(null, cwe, fullDesc, sevEnum, cwe, cvss, mapRes.getOwaspId() + " - " + mapRes.getOwaspName(), mobileScan);
+                                                v.setLegacyCategory(mapRes.getLegacyCategory());
+                                                v.setOwaspVersion(mapRes.getOwaspVersion());
+                                                v.setOwaspId(mapRes.getOwaspId());
+                                                v.setOwaspName(mapRes.getOwaspName());
                                                 vulnerabiliteService.saveVulnerabilite(v);
                                                 totalVulnerabilities++;
                                                 switch(sevEnum) {
@@ -658,7 +681,13 @@ public class AppScanServiceImpl implements AppScanService {
                     if (scanResp.getPermissions() != null) {
                         for (java.util.Map.Entry<String, com.example.backend.scan.dto.MobSFScanResponse.PermissionDetail> entry : scanResp.getPermissions().entrySet()) {
                             if ("dangerous".equalsIgnoreCase(entry.getValue().getStatus())) {
-                                Vulnerabilite v = new Vulnerabilite(null, "CWE-276", "Permission Android Dangereuse: " + entry.getKey() + " - " + entry.getValue().getDescription(), SeverityEnum.LOW, "CWE-276", 2.0, "Permission Insecure", mobileScan);
+                                String fullDesc = "Permission Android Dangereuse: " + entry.getKey() + " - " + entry.getValue().getDescription();
+                                com.example.backend.scan.dto.OwaspMappingResult mapRes = owaspMappingService.mapCategory("Permission Insecure", "CWE-276", fullDesc);
+                                Vulnerabilite v = new Vulnerabilite(null, "CWE-276", fullDesc, SeverityEnum.LOW, "CWE-276", 2.0, mapRes.getOwaspId() + " - " + mapRes.getOwaspName(), mobileScan);
+                                v.setLegacyCategory(mapRes.getLegacyCategory());
+                                v.setOwaspVersion(mapRes.getOwaspVersion());
+                                v.setOwaspId(mapRes.getOwaspId());
+                                v.setOwaspName(mapRes.getOwaspName());
                                 vulnerabiliteService.saveVulnerabilite(v);
                                 
                                 totalVulnerabilities++;

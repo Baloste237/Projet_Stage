@@ -1,0 +1,109 @@
+version: '3.8'
+
+services:
+  # ── Prometheus (Collecte des métriques) ──────────────────────
+  prometheus:
+    image: prom/prometheus:v2.45.0
+    container_name: prometheus
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/alerts:/etc/prometheus/alerts:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.retention.time=15d'
+    networks:
+      - vuln_scanner_network
+    restart: unless-stopped
+    ports:
+      - "9090:9090" # À commenter en prod si on passe par un ingress HTTPS
+
+  # ── Grafana (Tableaux de bord) ───────────────────────────────
+  grafana:
+    image: grafana/grafana:10.0.3
+    container_name: grafana
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    ports:
+      - "3000:3000" # Exposer le port pour l'interface web (restreindre accès via firewall)
+    networks:
+      - vuln_scanner_network
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+      - loki
+
+  # ── Loki (Agrégation des logs) ────────────────────────────────
+  loki:
+    image: grafana/loki:2.8.2
+    container_name: loki
+    volumes:
+      - loki_data:/loki
+      - ./monitoring/loki-config.yml:/etc/loki/local-config.yaml:ro
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - vuln_scanner_network
+    restart: unless-stopped
+    ports:
+      - "3100:3100"
+
+  # ── Promtail (Collecteur de logs Docker) ─────────────────────
+  promtail:
+    image: grafana/promtail:2.8.2
+    container_name: promtail
+    volumes:
+      - /var/log:/var/log:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./monitoring/promtail-config.yml:/etc/promtail/config.yml:ro
+    command: -config.file=/etc/promtail/config.yml
+    networks:
+      - vuln_scanner_network
+    restart: unless-stopped
+    depends_on:
+      - loki
+
+  # ── Node Exporter (Métriques système VM) ──────────────────────
+  node-exporter:
+    image: prom/node-exporter:v1.6.1
+    container_name: node-exporter
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.ignored-mount-points=^/(sys|proc|dev|host|etc)($$|/)'
+    networks:
+      - vuln_scanner_network
+    restart: unless-stopped
+
+  # ── cAdvisor (Métriques Docker) ───────────────────────────────
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.47.0
+    container_name: cadvisor
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    networks:
+      - vuln_scanner_network
+    restart: unless-stopped
+
+# ── Déclaration des réseaux ────────────────────────────────────
+networks:
+  vuln_scanner_network:
+    external: true
+
+# ── Déclaration des volumes persistants ────────────────────────
+volumes:
+  prometheus_data:
+  grafana_data:
+  loki_data:

@@ -119,6 +119,11 @@ export default function Vulnerabilities() {
                         <p className="text-xs text-muted-foreground">
                           {v.scan?.projectName || "Inconnu"} · Cible: {v.scan?.fileName || "ND"} · CWE: {v.cweId}
                         </p>
+                        {v.owaspVersion === "2024" && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            OWASP 2024: <span className="font-semibold">{v.owaspId}</span> - {v.owaspName}
+                          </p>
+                        )}
                       </div>
                     </div>
                     <Badge variant="outline" className="font-mono text-xs">
@@ -160,6 +165,16 @@ export default function Vulnerabilities() {
                       <Badge variant="outline">{v.cvssScore}</Badge>
                     </div>
                   </div>
+                  {v.owaspVersion && (
+                    <div className="mt-4 p-4 bg-muted/30 rounded-lg border border-border">
+                      <h4 className="text-sm font-semibold mb-2">Classification OWASP</h4>
+                      <p className="text-sm"><span className="font-medium">Version:</span> {v.owaspVersion}</p>
+                      <p className="text-sm"><span className="font-medium">Catégorie:</span> {v.owaspId} - {v.owaspName}</p>
+                      {v.legacyCategory && (
+                        <p className="text-xs text-muted-foreground mt-2">Mapped from Legacy OWASP 2016 : {v.legacyCategory}</p>
+                      )}
+                    </div>
+                  )}
                 </div>
               </DialogContent>
             </Dialog>
